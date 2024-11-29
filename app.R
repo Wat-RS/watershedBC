@@ -1,4 +1,4 @@
-# LOAD FUNCTIONS ####
+# LOAD FUNCTIONS #######################################################################
 
   rm(list=ls())
   source("functions_app/app_1_libs.R")
@@ -8,10 +8,23 @@
   source("functions_app/app_5_leaflet.R")
   source("functions_app/app_7_tooltips.R")
   source("functions_app/app_8_report.R")
+  # library(bslib)
+
+  onStop(function() {
+    cat("Closing Database Connections")
+    pool::poolClose(conn)
+    })
+
+# PACKRAT ##############################################################################
+
+  # renv::init()
 
 # UI ###########################################################################
 
-ui <- tagList(useShinyjs(), navbarPage(theme = "css/bcgov.css", title = "watershedBC (v0.1 PROTOTYPE)",
+ui <-
+
+  tagList(useShinyjs(),
+  navbarPage(theme = "css/bcgov.css", title = "watershedBC (v0.1 PROTOTYPE)", tags$style(HTML(".table-scroll {max-height: 200px; overflow-y: auto;}")),
 
   tabPanel(title = "watershedBC (v0.1 PROTOTYPE)",
 
@@ -36,13 +49,12 @@ ui <- tagList(useShinyjs(), navbarPage(theme = "css/bcgov.css", title = "watersh
                           style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),br(),br(),
 
       shiny::radioButtons(inputId = "watershed_source",
-
-        label = "Or Select a Data Source and click the map",
-        selected = "Freshwater Atlas Named Watersheds",
-        choices = c("Freshwater Atlas Named Watersheds",
-                    "Freshwater Atlas by Stream Order",
-                    "Custom Basin at Point of Interst",
-                    "Water Survey of Canada Basins")),
+                          label = "Or Select a Data Source and click the map",
+                          selected = "Freshwater Atlas Named Watersheds",
+                          choices = c("Freshwater Atlas Named Watersheds",
+                                      "Freshwater Atlas by Stream Order",
+                                      "Custom Basin at Point of Interst",
+                                      "Water Survey of Canada Basins")),
 
         radioTooltip(id = "watershed_source", choice = "Freshwater Atlas Named Watersheds", title = "Large named systems in the Freshwater Atlas (n = 11.5k)", placement = "right", trigger = "hover"),
         radioTooltip(id = "watershed_source", choice = "Freshwater Atlas by Stream Order", title = "Watershed units in the Freshwater Atlas summarized by stream order (n = 1.35 million)", placement = "right", trigger = "hover"),
@@ -69,8 +81,9 @@ ui <- tagList(useShinyjs(), navbarPage(theme = "css/bcgov.css", title = "watersh
       textOutput(outputId = "ws_selection_pred_time"),
       br(),
       br(),
-      downloadButton("downloadPDF", "Export PDF"),br(),
       downloadButton("downloadWatershed", "Watershed"),br(),
+      downloadButton("downloadSubbasins", "Sub basins"),br(),
+      downloadButton("downloadPDF", "Export PDF"),br(),
       # downloadButton("downloadSpatial", "Spatial"),br(),
       # downloadButton("downloadDEM", "DEM"),br(),
       # downloadButton("downloadDischarge", "Discharge"),br(),
@@ -83,7 +96,7 @@ ui <- tagList(useShinyjs(), navbarPage(theme = "css/bcgov.css", title = "watersh
         leafletOutput("mymap", height = '700px') %>% withSpinner(color = "steelblue"),
         checkboxInput(inputId = "active_mouse", label = "Watershed Delineation on Map Click", value = T, ),
         h3(textOutput(outputId = "ws_selection")),
-        tableOutput('table_named'),
+        div(class = "table-scroll", tableOutput('table_named')),
         plotlyOutput("plot_discharge"),
         shiny::selectInput(inputId = "plot_discharge_site_sel", label = "Override WSC Reference Station for Streamflow Estimation",
                            choices = stn_training$total_name, width = "600px"),
@@ -140,26 +153,30 @@ ui <- tagList(useShinyjs(), navbarPage(theme = "css/bcgov.css", title = "watersh
 
 server <- function(input, output, session) {
 
-  ## ADD LIST TO SEARCH BY NAME
-  updateSelectizeInput(session, 'psql_zoom_to_name', choices = c("", names$name), server = TRUE)
+# 1. SHINY SETUP FUNCTIONS ####
 
-  ## HIDE PLOTS ON START (GETS RID OF WHITESPACE) NEED TO KEEP app_6 up to date with new plot names
-  source("functions_app/app_6_hidereport.R")
+  ## ADD WATERSHED NAMES TO LIST TO SEARCH BY NAME
+    updateSelectizeInput(session, 'psql_zoom_to_name', choices = c("", names$name), server = TRUE)
 
-  ## RECORD SESSION INFO - FOR TRACKINGS
-  session_start <- Sys.time() %>% format("%Y-%m-%d %H:%M:%S %Z",tz="UTC")
-  session_token <- session$token
+  ## HIDE PLOTS ON START (GETS RID OF WHITESPACE) ****NEED TO KEEP app_6 up to date with new plot names
+    source("functions_app/app_6_hidereport.R")
+
+  ## RECORD SHINY SESSION INFO - FOR TRACKINGS
+    session_start <- Sys.time() %>% format("%Y-%m-%d %H:%M:%S %Z",tz="UTC")
+    session_token <- session$token
 
   ## CREATE REACTIVE VAL FOR WATERSHED
-  new_ws <- reactiveVal()
-  basin_source <- reactiveVal()
-  new_ws2_forRF <- reactiveVal()
-  gg_plot_discharge2 <- reactiveVal()
+    new_ws <- reactiveVal()
+    basin_source <- reactiveVal()
+    new_ws2_forRF <- reactiveVal()
+    gg_plot_discharge2 <- reactiveVal()
 
-## ADD INITAL BASEMAP OVER BC
-  output$mymap <- renderLeaflet({initial_map %>% fitBounds(-140, 48, -113, 60)})
+  ## ADD INITAL BASEMAP OVER BC
+    output$mymap <- renderLeaflet({initial_map %>% fitBounds(-140, 48, -113, 60)})
 
-# OPTION 1: CLICK MAP TO SELECT WATERSHED ####
+# 2. SELECT WATERSHED ####
+
+## A: CLICK ON MAP ####
 
   # ACTION ON CLICK
   observeEvent(input$mymap_click, {
@@ -176,12 +193,12 @@ server <- function(input, output, session) {
         # GET CLICK POINT
         incProgress(1, detail = "...")
         point <- input$mymap_click
-        point_df <- data.frame(lat = point$lat, lng = point$lng) # point_df <- data.frame(lat = 53.1204052831066, lng = -124.937831245044)
+        point_df <- data.frame(lat = point$lat, lng = point$lng)
+        # point_df <- data.frame(lat = 53.1204052831066, lng = -124.937831245044)
         point_df_3005 <- point_df %>% st_as_sf(coords = c("lng","lat"), crs = 4326) %>% st_transform(3005) %>% st_coordinates()
         print(paste0("point_df <- data.frame(lat = ",point_df$lat,", lng = ",point_df$lng,")"))
 
         # SELECT WATERSHED FROM ONE OF THESE FOUR OPTIONS
-
         if(input$watershed_source == "Freshwater Atlas Named Watersheds") {
           basin_source("FWA")
           bas <- st_read(conn, query = paste0(
@@ -190,7 +207,8 @@ server <- function(input, output, session) {
              ORDER BY area_m2 ASC LIMIT 1"))
           if(nrow(bas) > 0) {
             bas <- bas %>% st_cast("POLYGON", warn = F)
-            bas <- bas %>% mutate(area_km2 = area_m2 / (1000 * 1000))}
+            bas <- bas %>% mutate(area_km2 = area_m2 / (1000 * 1000))
+            }
           }
 
         if(input$watershed_source == "Freshwater Atlas by Stream Order") {
@@ -265,17 +283,22 @@ server <- function(input, output, session) {
 
         tictoc <- toc(quiet = T)$callback_msg
 
+        # SAVE PROCESSING TIME TO DATABASE
         if (nrow(bas) > 0) {
 
           output$ws_run <- renderText({tictoc})
 
-          dbWriteTable(conn,"usage",data.frame(date_time = as.character(session_start), session_token = session_token,
-                                               gnis_name = new_ws()$gnis_name, gnis_id = new_ws()$gnis_id,
+          dbWriteTable(conn,"usage",data.frame(date_time = as.character(session_start),
+                                               session_token = session_token,
+                                               gnis_name = new_ws()$gnis_name,
+                                               gnis_id = new_ws()$gnis_id,
                                                processing_time = tictoc, action = "select watershed",
-                                               area_km2 = round(new_ws()$area_km2, 1), basin_source = basin_source()), append = TRUE)
+                                               area_km2 = round(new_ws()$area_km2, 1),
+                                               basin_source = basin_source()), append = TRUE)
+
           }})}})
 
-# OPTION 2: ZOOM TO NAMED WATERSHED ####
+## B: SELECT FROM LIST ####
 
   observeEvent(input$zoom_to_button, {
 
@@ -322,7 +345,8 @@ server <- function(input, output, session) {
 
           output$ws_run <- renderText({tictoc})
 
-          dbWriteTable(conn,"usage",data.frame(date_time = as.character(session_start), session_token = session_token,
+          dbWriteTable(conn,"usage",data.frame(date_time = as.character(session_start),
+                                               session_token = session_token,
                                                gnis_name = new_ws()$gnis_name, gnis_id = new_ws()$gnis_id,
                                                processing_time = tictoc, action = "select watershed",
                                                area_km2 = round(new_ws()$area_km2, 1), basin_source = basin_source()), append = TRUE)
@@ -334,7 +358,8 @@ server <- function(input, output, session) {
 
     withProgress(message = 'Update Reference Station...', max = 2,  {
 
-      my_force_station <- str_split_fixed(input$plot_discharge_site_sel, " - ", 3)[,1] # my_force_station = "08JA019"
+      my_force_station <- str_split_fixed(input$plot_discharge_site_sel, " - ", 3)[,1]
+      # my_force_station = "08JA019"
 
       ref_stn_ws <- st_read(conn, query = paste0("SELECT stationnum,name,area,geometry FROM wsc_drainagebasin_clean_3005
                                                  WHERE stationnum = '",my_force_station,"'")) %>% rename(geom = geometry)
@@ -367,19 +392,17 @@ server <- function(input, output, session) {
       if(input$watershed_source == "Water Survey of Canada Basins"){
         gg_plot_discharge <- pred_Q_rf(w = new_ws2_forRF(), force_station = my_force_station, wsc_STATION_NUMBER = new_ws()$gnis_id)
         gg_plot_discharge2(gg_plot_discharge)
-
         output$plot_discharge <- renderPlotly({
-
-          ggplotly(gg_plot_discharge, dynamicTicks = T, width = 800)
-
+          plotly::ggplotly(gg_plot_discharge, dynamicTicks = T, width = 800)
           })
           }else{
             gg_plot_discharge <- pred_Q_rf(w = new_ws2_forRF(), force_station = my_force_station)
+            # gg_plot_discharge <- pred_Q_rf(w = new_ws2_forRF_temp, force_station = ref_stn)
             gg_plot_discharge2(gg_plot_discharge)
 
             output$plot_discharge <- renderPlotly({
 
-              ggplotly(gg_plot_discharge, dynamicTicks = T, width = 800)
+              plotly::ggplotly(gg_plot_discharge, dynamicTicks = T, width = 800)
 
           })
           }})})
@@ -424,7 +447,7 @@ server <- function(input, output, session) {
   min_pt <- data.frame(x = min_coords[1,1], y = min_coords[1,2]) %>% st_as_sf(coords = c("x","y"), crs = 4326)
   min_coords <- min_pt %>% st_transform(3005) %>% filter(row_number() == 1) %>% st_coordinates()
   new_ws2 <- new_ws2 %>% mutate(LONGITUDE = min_coords[1,1][[1]], LATITUDE = min_coords[1,2][[1]])
-  mapview::mapview(min_pt)
+  # mapview::mapview(min_pt)
   dem_min = dem_quant %>% filter(quant == 100) %>% pull(dem)
   dem_max = dem_quant %>% filter(quant == 0) %>% pull(dem)
   ws_area = new_ws2$area_km2
@@ -436,7 +459,7 @@ server <- function(input, output, session) {
   gg_hyps <- dem_quant %>% ggplot() +
     geom_hline(aes(yintercept = h60, color = "h60"), linetype = 2) +
     geom_line(aes(quant, dem, color = "hypsometry")) +
-    geom_text(aes(90, h60*1.05, label = paste0("h60: ", h60," m"))) +
+    annotate("text", x = 90, y = h60*1.05, label = paste0("h60: ", h60," m")) +
     theme_bw() +
     scale_x_continuous(expand = c(0,0)) +
     scale_y_continuous(expand = c(0,0)) +
@@ -456,7 +479,7 @@ server <- function(input, output, session) {
     incProgress(1, detail = "Get Watersheds")
 
     print("getting watersheds")
-    my_named <- postgis_get_pol("fwa_named","*",elev = F, my_wkt = new_ws2_wkt,min_area_km2 = new_ws2$area_km2 * 0.1)
+    my_named <- postgis_get_pol("fwa_named","*",elev = F, my_wkt = new_ws2_wkt, min_area_km2 = new_ws2$area_km2 * 0.01)
 
     if(nrow(my_named) > 0){
       my_named <- my_named %>%
@@ -467,6 +490,7 @@ server <- function(input, output, session) {
                                     area_km2 > new_ws2$area_km2 ~ "Downstream",
                                     area_km2 < new_ws2$area_km2 ~ "Upstream",
                                     TRUE ~ ""))
+
       output$table_named <- renderTable(
         my_named %>% st_drop_geometry() %>%
           mutate(area_km2 = round(area_km2, 1)) %>%
@@ -544,8 +568,13 @@ server <- function(input, output, session) {
     incProgress(1, detail = "Estimating discharge...")
 
     new_ws2_forRF(pred_Q_prepWS(w = new_ws2, my_wetlands = my_wl, my_glaciers = my_gl, my_lakes = my_lk))
+    # new_ws2_forRF_temp <- pred_Q_prepWS(w = new_ws2, my_wetlands = my_wl, my_glaciers = my_gl, my_lakes = my_lk)
+
     print(new_ws2_forRF())
+
     ref_stn <- pred_Q_findRef(w = new_ws2_forRF())
+    # ref_stn <- pred_Q_findRef(w = new_ws2_forRF_temp)
+
     ref_stn_ws <- st_read(conn, query = paste0("SELECT stationnum,name,area,geometry FROM wsc_drainagebasin_clean_3005
                                                 WHERE stationnum = '",ref_stn,"'")) %>% rename(geom = geometry)
 
@@ -641,8 +670,8 @@ server <- function(input, output, session) {
 
     e <- do.call(bind_rows, lapply(1:nrow(eca), function(i = 1) {
       p <- eca[i, ]
-      if (p$type == "WILDFIRE") {slope = 100 / 40}
-      if (p$type == "CUTBLOCK") {slope = 100 / 40}
+      if (p$type == "WILDFIRE") {slope = 100 / 60}
+      if (p$type == "CUTBLOCK") {slope = 100 / 60}
       years <- (p$year + 1):(lubridate::year(lubridate::now()))
       bind_rows(p, data.frame(year = years) %>% mutate(type = p$type, eca = p$eca - ((year - p$year) * slope), area = p$clipped_area_m2/(1000 * 1000), ws_area = p$ws_area)) %>%
         mutate(eca = case_when(eca < 0 ~ 0, TRUE ~ eca))}))
@@ -665,7 +694,7 @@ server <- function(input, output, session) {
     output$text_plot_eca <- renderText({
       "<br><b> Equivalent Clearcut Area (ECA)</b> is a basin-wide statistic that is the sum of the total area of all forest disturbance
        with a reduction factor that account for forest regeneration. ECA is expressed as a percentage of forest disturbance relative to
-       the total forested area of the watershed. The <b>Simplified ECA</b> is a quick calculation that assumes that all wildfires and cutblocks take 40 years to recover. The
+       the total forested area of the watershed. The <b>Simplified ECA</b> is a quick calculation that assumes that all wildfires and cutblocks take 60 years to recover. The
        Simplified ECA does not account for non-forested areas (e.g. alpine, lakes, ..), permanent forest disturbances (e.g. roads, pipelines, ..),
        forest health factors (e.g. mountain pine beetle, etc.), or variable recovery rates based on site specific factors. This Simplified ECA
        is not the same as ECA, and should not be misinterpreted as such. Read more about ECA: Winkler and Boone 2017 <a href='https://www.for.gov.bc.ca/hfd/pubs/Docs/En/En118.htm'>
@@ -1384,8 +1413,12 @@ server <- function(input, output, session) {
                                         overlayGroups = c("WSC Active", "WSC Discontinued"),
                          options = layersControlOptions(collapsed = F))
     }
-    else{new_leaflet <- initial_map %>%
-      addPolygons(data = new_ws2 %>% st_transform(4326), fillOpacity = 0, weight = 2, color = "blue")}
+    else{
+      print("update leaflet")
+      new_leaflet <- initial_map %>%
+      addPolygons(data = new_ws2 %>% st_transform(4326), fillOpacity = 0, weight = 2, color = "blue")
+      print("--success")
+      }
 
     if("Forest Disturbance" %in% input$run_modules){
       new_leaflet <- new_leaflet %>%
@@ -1423,7 +1456,19 @@ server <- function(input, output, session) {
     }
 
     if("Streamflow and Freshwater" %in% input$run_modules){
+
+      random_hex_color <- function() {paste0("#", paste(sample(c(0:9, letters[1:6]), 6, replace = TRUE), collapse = ""))}
+
+      sub_basins <- my_named[my_named$Location %in% c("Upstream","Watershed of Interest"),] %>%
+        mutate(weight = 1+(as.numeric(area_km2) / max(area_km2) * 3)) %>%  # Scale weight (line width) based on area
+        arrange(-area_km2) %>%
+        rowwise() %>%
+        mutate(random_color = random_hex_color())
+
+      sub_basins_plot <- sub_basins %>% filter(Location == "Upstream")
+
       new_leaflet <- new_leaflet %>%
+        addPolygons(data = sub_basins_plot %>% st_transform(4326), group = "Sub basins", label = sub_basins_plot$gnis_name, fillOpacity = 0.1, weight = sub_basins_plot$weight, color = sub_basins_plot$random_color) %>%
         addPolygons(data = my_wl %>% filter(clipped_area_m2 > 0) %>% st_transform(4326), group = "FWA Wetland", fillColor = "yellow", color = "pink", weight = 1, fillOpacity = 0.3, label = my_wl$waterbody_type) %>%
         addPolygons(data = my_lk %>% filter(clipped_area_m2 > 0) %>% st_transform(4326), group = "FWA Lake", fillColor = "steelblue", color = "steelblue", weight = 1, fillOpacity = 1, label = my_lk$waterbody_type) %>%
         addPolygons(data = my_gl %>% filter(clipped_area_m2 > 0) %>% st_transform(4326), group = "FWA Glacier", fillColor = "grey", color = "grey", weight = 1, fillOpacity = 0.3, label = my_gl$waterbody_type) %>%
@@ -1435,7 +1480,7 @@ server <- function(input, output, session) {
     output$mymap <- renderLeaflet({
       new_leaflet <- new_leaflet %>%
         addLayersControl(baseGroups = c("BC Basemap", "WorldImagery", "WorldTopoMap", "Landsat 2000", "Landsat 2021"),
-                         overlayGroups = c("WSC Active", "WSC Discontinued",
+                         overlayGroups = c("Sub basins","WSC Active", "WSC Discontinued",
                                            "FWA Wetland", "FWA Lake", "FWA Glacier", "Glacier 1985", "Glacier 2021",
                                            "Fire", "Cutblock", "Roads", "Water Rights", "Water Approvals"),
                          options = layersControlOptions(collapsed = F)) %>%
@@ -1453,7 +1498,10 @@ server <- function(input, output, session) {
 
 # DOWNLOAD BUTTONS ####
 
-  output$downloadWatershed <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_watershed.kml")}, content = function(file) { st_write(new_ws2 %>% bind_rows(my_named), file)})
+  output$downloadWatershed <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_watershed.kml")}, content = function(file) {
+    st_write(new_ws2 %>% rename(Name = gnis_name, Description = area_km2) %>% mutate(Description = paste0(round(Description,2), " km2")) %>% select(Name, Description), file)})
+  output$downloadSubbasins <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_subbasins.kml")}, content = function(file) {
+    st_write(sub_basins %>% rename(Name = gnis_name, Description = area_km2) %>% mutate(Description = paste0(round(Description,2), " km2")) %>% select(Name, Description), file)})
   output$downloadImagery1985 <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_L5_1985.tif")}, content = function(file) { terra::writeRaster(r1985, file)})
   output$downloadImagery2020 <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_L8_2020.tif")}, content = function(file) { terra::writeRaster(r2020, file)})
   output$downloadImagery2023 <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_S2_2023.tif")}, content = function(file) { terra::writeRaster(r2023, file)})
@@ -1462,8 +1510,9 @@ server <- function(input, output, session) {
   output$downloadLakes <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_lakes.sqlite")}, content = function(file) { st_write(my_lk, file)})
   output$downloadGlaciers <- downloadHandler(filename = function() {paste0(gsub(" ", "-", new_ws2$gnis_name), "_", new_ws2$gnis_id, "_glaciers.sqlite")}, content = function(file) { st_write(my_gl, file)})
 
-  shinyjs::show("downloadPDF")
   shinyjs::show("downloadWatershed")
+  shinyjs::show("downloadSubbasins")
+  shinyjs::show("downloadPDF")
   shinyjs::show("downloadSpatial")
   shinyjs::show("downloadDEM")
   shinyjs::show("downloadDischarge")
@@ -1509,9 +1558,12 @@ server <- function(input, output, session) {
   })
 }
 
-shinyApp(ui, server)
+shinyApp(ui, server, options = list(port = 3838))
 
 # lapply(DBI::dbListConnections(RPostgres::dbDriver("PostgreSQL")), function(i){
 #   print(i)
 #   DBI::dbDisconnect(i)
 #   })
+
+# shiny::runApp()
+
