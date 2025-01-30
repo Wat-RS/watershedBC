@@ -74,6 +74,7 @@ pred_Q_findRef <-
             LATITUDE
           )
         )$predictions
+
       pred_stn <-
         data.frame(prob = t(pred_stn)) %>% mutate(id = row_number()) %>% arrange(-prob)
 
@@ -111,10 +112,11 @@ pred_Q_findRef <-
     return(force_station)
   }
 
-pred_Q_rf <-
-  function(w = new_ws2_forRF(),
-           force_station = ref_stn,
-           wsc_STATION_NUMBER = NULL) {
+pred_Q_rf <- function(w = new_ws2_forRF(),
+                      force_station = ref_stn,
+                      wsc_STATION_NUMBER = NULL,
+                      plot = T) {
+
     ref_wsc_daily <-
       st_read(
         conn,
@@ -137,6 +139,7 @@ pred_Q_rf <-
 
     ref_mad_perkm2 <-
       mean(ref_wsc_daily$mean, na.rm = T) / (ref_wsc_area$area / (1000 * 1000))
+
     target_mad <- ref_mad_perkm2 * w$area_km2
 
     target_mad_ts <- ref_wsc_daily %>%
@@ -147,7 +150,9 @@ pred_Q_rf <-
       ) %>%
       select(dayof_year, `LT Mean`, `LT 95th`, `LT 5th`)
 
-    (
+
+    if(plot == T){
+
       pppp <- target_mad_ts %>%
         pivot_longer(cols = -dayof_year) %>%
         ggplot() +
@@ -182,7 +187,6 @@ pred_Q_rf <-
           )
         ) +
         theme_bw()
-    )
 
     if (is.null(wsc_STATION_NUMBER)) {
       pppp
@@ -197,6 +201,7 @@ pred_Q_rf <-
             "'"
           )
         )
+
       if (nrow(wsc_lt) == 0) {
         pppp
       }
@@ -213,6 +218,9 @@ pred_Q_rf <-
             size = 1
           ) +
           labs(linetype = "Station Data")
+          }
+        }
+    }else{
+        data.frame(MAD = target_mad)
       }
-    }
-  }
+}
