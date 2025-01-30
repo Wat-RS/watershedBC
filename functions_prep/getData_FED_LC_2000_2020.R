@@ -19,7 +19,7 @@ for(y in years){
 paste0(url,,"/LU2000_u")
 
 
-,c("07","08"))
+# ,c("07","08"))
 
 
 l <- list.files("C:/Users/bevin/Downloads/AA", pattern = "*.tif$", full.names = T)
