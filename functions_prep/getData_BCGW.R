@@ -21,7 +21,7 @@ refresh <- function(){
             password = Sys.getenv("aw_password"))}
 conn <- refresh()
 
-setwd("X:/Research/Data_watershedBC/")
+setwd("Z:/Data_watershedBC/")
 
 # UPLOAD BASINS
 
@@ -37,17 +37,20 @@ setwd("X:/Research/Data_watershedBC/")
   p <- st_read("ws_basins/basin_100_ws_v4.sqlite")
   st_write(p, dsn = conn, layer = "basins", delete_dsn = F, append = T)
   st_read(conn, query = "SELECT COUNT(*) FROM basins")
-  st_write()
 
-  7218+3653
 # UPLOAD FIRES ####
 
   fire_hist <- st_read("forest_wildfire/fire_historical.sqlite") %>% select(fire_year, fire_number)
   fire_curr <- st_read("forest_wildfire/fire_current.sqlite") %>% select(fire_year, fire_number)
-  fire <- fire_hist %>% bind_rows(fire_curr) %>% mutate(area_m2 = as.numeric(st_area(.))) %>%
+  # bcdc_search("fire perimeter")
+  fire_new_1 <- bcdc_query_geodata("bc-wildfire-fire-perimeters-historical") %>% filter(FIRE_YEAR > 2022) %>% collect() %>% filter(FIRE_YEAR > 2023)
+  fire_new_2 <- bcdc_query_geodata("bc-wildfire-fire-perimeters-current") %>% filter(FIRE_YEAR > 2022) %>% collect() %>% filter(FIRE_YEAR > 2023)
+  fire_new <- bind_rows(fire_new_1,fire_new_2)
+  fire <- fire_new %>% select(fire_year = FIRE_YEAR, fire_number = FIRE_NUMBER, GEOMETRY = geometry) %>% bind_rows(fire_hist %>% bind_rows(fire_curr)) %>% mutate(area_m2 = as.numeric(st_area(.))) %>%
     select(fire_year, fire_number, area_m2, geom = GEOMETRY) %>%
     clean_names()
-  st_write(fire, dsn = conn, layer = "fire", delete_dsn = F)
+  fire %>% st_drop_geometry() %>% group_by(fire_year) %>% summarize(area_m2 = sum(area_m2, na.rm = T)) %>% ggplot() + geom_col(aes(fire_year, area_m2))
+  st_write(fire, dsn = conn, layer = "fire", delete_dsn = T)
 
 # UPLOAD CUTBLOCKS
 
@@ -104,3 +107,10 @@ dem_pts <- dem %>% as.data.frame()
 
 dbWriteTable(conn, "cded_dem", dem, append = TRUE, row.names = FALSE, overwrite = FALSE, geom = "rast", driver = "PostgreSQL")
 dbDisconnect(conn)
+
+
+# UPDATE CUTBLOCKS
+bcdc_search("cutblocks")
+# cb_2024 <-
+  bcdc_query_geodata("harvested-areas-of-bc-consolidated-cutblocks-") %>%
+  filter(HARVEST_YEAR == 2024)
