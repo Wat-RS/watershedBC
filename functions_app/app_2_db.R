@@ -14,6 +14,7 @@
 # POINT ####
 
   postgis_get_point <-
+
     function(to_clip = "dams",
              my_wkt = new_ws2_wkt) {
       q <-
@@ -34,6 +35,7 @@
                    coords = c("lon", "lat"),
                    crs = 4326) %>% mutate(type = "test") %>% filter(type != "test")
       }
+
       return(o)
     }
 
@@ -63,6 +65,7 @@
                    crs = 4326) %>%
           mutate(type = "test") %>% filter(type != "test")
       }
+
       return(o)
     }
 
@@ -74,8 +77,8 @@
                               my_wkt = new_ws2_wkt,
                               min_area_km2 = 0.01,
                               my_dem = dem) {
-    q <-
-      paste0(
+
+    q <- paste0(
         "SELECT w.*, ST_Intersection(w.geom,ST_GeomFromText('",
         my_wkt,
         "', 3005)) AS geom
@@ -97,7 +100,8 @@
       if (nrow(o) > 0) {
         if (elev == "T") {
           o <-
-            o %>% bind_cols(
+            o %>%
+            bind_cols(
               terra::extract(
                 my_dem,
                 o %>% st_centroid(of_largest_polygon = T) %>% st_transform(4326)
@@ -110,6 +114,7 @@
           st_cast("POLYGON")
       }
     }
+
     if (nrow(o) > 0) {
       o <- o %>% filter(clipped_area_m2 > 10) %>%
         mutate(type = to_clip) %>%
@@ -121,5 +126,7 @@
                  coords = c("lon", "lat"),
                  crs = 4326) %>% mutate(type = "test") %>% filter(type != "test")
     }
+
     return(o)
   }
+
