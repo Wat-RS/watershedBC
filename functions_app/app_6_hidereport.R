@@ -1,5 +1,6 @@
 shinyjs::hide("downloadPDF")
 shinyjs::hide("downloadWatershed")
+shinyjs::hide("downloadSubbasins")
 shinyjs::hide("downloadSpatial")
 shinyjs::hide("downloadImagery1985")
 shinyjs::hide("downloadImagery2020")
