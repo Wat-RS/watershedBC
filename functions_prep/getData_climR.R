@@ -1,6 +1,6 @@
 # remotes::install_github("bcgov/climr")
 
-library(climr)
+# library(climr)
 ##provide or create a long, lat, elev dataframe
 in_xyz <- structure(list(Long = c(-127.70521, -127.62279, -127.56235, -127.7162,
                                   -127.18585, -127.1254, -126.94957, -126.95507),
