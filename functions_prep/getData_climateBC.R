@@ -1,7 +1,7 @@
 
 library(dplyr)
 library(stars)
-library(ClimateNAr)
+# library(ClimateNAr)
 
 wd <- "C:/Users/bevington/Downloads/test"
 dir.create(wd)
