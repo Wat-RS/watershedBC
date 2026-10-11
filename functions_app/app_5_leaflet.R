@@ -44,8 +44,8 @@ library(htmltools)
 library(htmlwidgets)
 
 # ── WMTS Config ─────────────────────────────────────────────────────────────
-GEOSERVER_BASE <- "https://138-197-163-26.sslip.io/geoserver"
-WMTS_CAPS_URL  <- "http://138.197.163.26:8080/geoserver/gwc/service/wmts?request=GetCapabilities"
+GEOSERVER_BASE <- "https://geoserver.watershedbc.ca/geoserver"
+WMTS_CAPS_URL  <- paste0(GEOSERVER_BASE, "/gwc/service/wmts?request=GetCapabilities")
 
 # ── Parse WMTS GetCapabilities ──────────────────────────────────────────────
 parse_wmts <- function(url) {
