@@ -42,6 +42,8 @@ cred.csv
 /monitoring_functions/
 /paper/
 /functions_model/
+/functions_prep/
+functions_prep/
 packrat/lib*/
 .Rprofile
 test
@@ -57,3 +59,4 @@ example_jeremy.R
 *.sqlite
 *.gpkg
 *.html
+
