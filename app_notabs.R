@@ -137,7 +137,7 @@ ui <-
       shiny::fluidRow(
         shiny::column(width = 12,
         HTML("watershed BC is a <b>prototype</b><br>
-            <b>More info:</b> <a href='https://github.com/bcgov/watershedBC/', target='_blank'>https://github.com/bcgov/watershedBC/</a><br>
+            <b>More info:</b> <a href='https://github.com/Wat-RS/watershedBC/', target='_blank'>https://github.com/Wat-RS/watershedBC/</a><br>
             <b>Known issues:</b> Data is not accurate across borders. Discharge estimates are not validated. ECA calculations are preliminary, etc.<br>
             This tool is provided with <b>no guarantees of reliability or accuracy</b>, please scrutinize the results.<br>
             Please contact <i>alexandre.bevington@gov.bc.ca</i> with any questions or comments about this tool."), br())),

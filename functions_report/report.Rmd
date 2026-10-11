@@ -366,5 +366,5 @@ Do not use for regulatory, engineering, or water management decisions.
 | Landslide Zonation | Copernicus GLO-30 DEM; ClimateBC MAP 1991–2020 |
 | Satellite Imagery | USGS Landsat Collection 2 L2; ESA Copernicus Sentinel-2 L2A |
 
-**More information:** <https://github.com/bcgov/watershedBC/>  
+**More information:** <https://github.com/Wat-RS/watershedBC/>  
 **Contact:** alex.bevington\@unbc.ca

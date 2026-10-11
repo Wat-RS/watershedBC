@@ -469,6 +469,7 @@ ui <-
                      tabPanel(title = "Usage",
                               shiny::fluidRow(
                                 shiny::column(width = 12,
+                                              plotOutput("usage_visits", width = 800, height = 400),
                                               plotOutput("usage_recent", width = 800, height = 800),
                                               plotOutput("usage_top",    width = 800, height = 800),
                                               plotOutput("usage_total",  width = 800, height = 800)))),
@@ -483,13 +484,14 @@ ui <-
                      shiny::fluidRow(
                        shiny::column(width = 12,
                                      HTML("watershedBC is a <b>prototype</b> — results are not validated and should not be used for regulatory or engineering decisions.<br>
-                                                     <b>More info:</b> <a href='https://github.com/bcgov/watershedBC/' target='_blank'>https://github.com/bcgov/watershedBC/</a> |
+                                                     <b>More info:</b> <a href='https://github.com/Wat-RS/watershedBC/' target='_blank'>https://github.com/Wat-RS/watershedBC/</a> |
                                                      Contact: <i>alex.bevington@unbc.ca</i>"), br())),
                      
                      shiny::fluidRow(
                        shiny::column(width = 12, class = "wrsl-footer",
                                      HTML("<a href='https://watershedlab.ca' target='_blank'>Watershed Remote Sensing Lab</a>,
-                                           University of Northern British Columbia")))))
+                                           University of Northern British Columbia"),
+                                     textOutput("visit_count", inline = TRUE)))))
           # shiny::fluidRow(
           #              shiny::column(width = 12,
           #                            style = "background-color:#003366; border-top:2px solid #fcba19;",
@@ -535,6 +537,17 @@ server <- function(input, output, session) {
   
   session_start <- Sys.time() %>% format("%Y-%m-%d %H:%M:%S %Z", tz = "UTC")
   session_token <- session$token
+
+  # Visitor counter: log this app open, then show distinct sessions in the footer
+  tryCatch(
+    dbExecute(conn, "INSERT INTO usage (date_time, session_token, action) VALUES ($1, $2, 'app open')",
+              params = list(session_start, session_token)),
+    error = function(e) message("Visit log failed: ", conditionMessage(e)))
+  output$visit_count <- renderText({
+    n <- tryCatch(dbGetQuery(conn, "SELECT count(DISTINCT session_token)::int AS n FROM usage")$n,
+                  error = function(e) NA)
+    if (is.na(n)) "" else paste0(" · ", format(n, big.mark = ","), " visits since Dec 2023")
+  })
   
   new_ws           <- reactiveVal()
   basin_source     <- reactiveVal()
@@ -2329,6 +2342,7 @@ server <- function(input, output, session) {
   
   # USAGE PLOTS ──────────────────────────────────────────────────────────────────
   
+  output$usage_visits <- renderPlot({ plot_usage_visits })
   output$usage_recent <- renderPlot({ plot_usage_recent })
   output$usage_top    <- renderPlot({ plot_usage_top    })
   output$usage_total  <- renderPlot({ plot_usage_total  })

@@ -95,6 +95,35 @@ plot_usage_top <- df %>%
        y = "Total number of reports (to date)") +
   theme(aspect.ratio = 1.4)
 
+# Visits per day: one visit = one session, dated by its first row. Before Oct 2026
+# only sessions that selected a watershed were logged; since then every app open is.
+visits_daily <- d %>%
+  as_tibble() %>%
+  mutate(date_time = as_datetime(date_time) %>% with_tz("America/Vancouver")) %>%
+  filter(!is.na(date_time)) %>%
+  group_by(session_token) %>%
+  summarize(date = as.Date(min(date_time), tz = "America/Vancouver")) %>%
+  count(date, name = "visits") %>%
+  complete(date = seq(min(date), max(date), by = "day"), fill = list(visits = 0)) %>%
+  mutate(visits_7d = as.numeric(stats::filter(visits, rep(1/7, 7), sides = 1)))
+
+plot_usage_visits <- visits_daily %>%
+  ggplot(aes(date)) +
+  geom_col(aes(y = visits), fill = "#3d90a8", alpha = 0.45, width = 1) +
+  geom_line(aes(y = visits_7d), colour = "#084b61", linewidth = 0.8, na.rm = TRUE) +
+  geom_vline(xintercept = as.Date("2026-10-11"), linetype = 2, colour = "grey50") +
+  annotate("text", x = as.Date("2026-10-11"), y = Inf, vjust = 1.5, hjust = 1.05, size = 3,
+           colour = "grey35", label = "all app opens\nlogged from here") +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 0)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(x = "", y = "Visits per day",
+       title = paste0(format(sum(visits_daily$visits), big.mark = ","), " visits since ",
+                      format(min(visits_daily$date), "%b %Y")),
+       subtitle = "Bars: daily visits · line: 7-day average")
+
 plot_usage_total <- df %>%
   filter(action == "processing") %>%
   group_by(date, action) %>%
