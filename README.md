@@ -6,7 +6,7 @@ watershedBC is an open-source R Shiny app. Click any point on the map (or search
 
 > ⚠️ **watershedBC is a prototype.** Results are indicative only, have not been validated, and must not be used for regulatory, engineering or water-management decisions. Always go back to the source data.
 
-- **App:** <!-- TODO: current production URL (e.g. https://watershedbc.ca) -->
+- **App:** https://watershedbc.ca
 - **Issues & feedback:** https://github.com/Wat-RS/watershedBC/issues
 - **Contact:** Alex Bevington, alex.bevington@unbc.ca
 
