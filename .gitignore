@@ -48,3 +48,12 @@ test
 renv
 renv.lock
 watershedBC_backup.tar
+# Local history, sync-conflict copies, logs, scratch
+*.Rhistory
+*-UNBC-CKXK6F4*
+*.log
+example_jeremy.R
+# Local data files (large data lives in PostGIS / S3)
+*.sqlite
+*.gpkg
+*.html
