@@ -38,10 +38,26 @@ wsc_pp_dc <- wsc_pp %>% filter(status == "discontinued") %>% mutate(id = station
 #   addMouseCoordinates()
 
 library(leaflet)
-library(leafem)
 library(xml2)
 library(htmltools)
 library(htmlwidgets)
+
+# Lightweight stand-in for leafem::addMouseCoordinates() — leafem pulls in raster/sp (~2s startup)
+addMouseCoordinates <- function(map) {
+  htmlwidgets::onRender(map, "
+    function(el, x) {
+      var map = this;
+      var box = L.DomUtil.create('div');
+      box.style.cssText = 'position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:1000;' +
+        'background:rgba(255,255,255,0.8);font:11px monospace;padding:1px 6px;pointer-events:none;';
+      map.getContainer().appendChild(box);
+      map.on('mousemove', function(e) {
+        box.textContent = 'lon: ' + e.latlng.lng.toFixed(5) + ' | lat: ' + e.latlng.lat.toFixed(5) +
+          ' | zoom: ' + map.getZoom();
+      });
+      map.on('mouseout', function() { box.textContent = ''; });
+    }")
+}
 
 # ── WMTS Config ─────────────────────────────────────────────────────────────
 GEOSERVER_BASE <- "https://geoserver.watershedbc.ca/geoserver"

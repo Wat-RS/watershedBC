@@ -36,19 +36,18 @@ if (!nzchar(Sys.getenv("SHINY_PORT"))) {
 
 suppressPackageStartupMessages({
   
-  library(ranger)
+  # library(ranger)       # loaded on demand in pred_Q_findRef()
   library(purrr)
   
   # DATABASE
   library(DBI)
-  library(RPostgreSQL)
+  # library(RPostgreSQL)  # not used — pool uses RPostgres::Postgres()
   library(pool)
   
   # DATA
   # library(bcmaps)        # not used in app code — remove if confirmed
-  library(bcdata)
-  library(elevatr)       # only used in pred_Q_prepWS() — loaded there via elevatr::get_aws_points()
-  # UPDATE: if you prefer, keep this and namespace-qualify instead
+  # library(bcdata)        # all calls use bcdata::
+  # library(elevatr)       # only used in pred_Q_prepWS() via elevatr::get_aws_points()
   
   # UTILITIES
   library(tictoc)
@@ -57,7 +56,7 @@ suppressPackageStartupMessages({
   library(sf)
   library(terra)
   library(rmapshaper)
-  library(tidyterra)       # for geom_spatraster()
+  # library(tidyterra)     # geom_spatraster() called as tidyterra:: (lazy, ~0.75s saved)
   # library(ggnewscale)    # not used in current code
   
   # PLOTS
@@ -73,7 +72,7 @@ suppressPackageStartupMessages({
   
   # LEAFLET
   library(leaflet)
-  library(leafem)
+  # library(leafem)       # replaced by addMouseCoordinates() in app_5_leaflet.R (pulls in raster/sp, ~2s)
   # library(leafgl)        # not used in current code (addGlPoints etc.)
   
   # WRANGLING

@@ -20,14 +20,23 @@ onStop(function() {
 library(leafgl)
 library(htmlwidgets)
 
-ls_pts <- read.csv("data/landslides/Canadian_landslide_database_May2026_version14.csv") |>
-  st_as_sf(coords = c("Longitude","Latitude"), crs = 4326) |> st_zm()
-ls_pts$Type[is.na(ls_pts$Type) | ls_pts$Type == ""] <- "Unknown"
+# Cached as RDS (much faster than parsing the CSV); delete the .rds to rebuild from the CSV
+ls_csv <- "data/landslides/Canadian_landslide_database_May2026_version14.csv"
+ls_rds <- sub("\\.csv$", ".rds", ls_csv)
+if (file.exists(ls_rds)) {
+  ls_pts <- readRDS(ls_rds)
+} else {
+  ls_pts <- read.csv(ls_csv) |>
+    st_as_sf(coords = c("Longitude","Latitude"), crs = 4326) |> st_zm()
+  ls_pts$Type[is.na(ls_pts$Type) | ls_pts$Type == ""] <- "Unknown"
+  ls_pts$lab <- sprintf(
+    "<b>%s</b><br>ID: %s<br>Type: %s<br>Material: %s<br>Timing: %s<br>Trigger: %s<br>Reference: %s",
+    ls_pts$Name, ls_pts$LS_ID, ls_pts$Type, ls_pts$Material, ls_pts$Timing, ls_pts$Trigger, ls_pts$Reference)
+  ls_pts <- ls_pts[, c("Type", "lab")]   # only these are used by the map
+  try(saveRDS(ls_pts, ls_rds))
+}
 
 ls_pal <- colorFactor("viridis", domain = ls_pts$Type)
-ls_pts$lab <- sprintf(
-  "<b>%s</b><br>ID: %s<br>Type: %s<br>Material: %s<br>Timing: %s<br>Trigger: %s<br>Reference: %s",
-  ls_pts$Name, ls_pts$LS_ID, ls_pts$Type, ls_pts$Material, ls_pts$Timing, ls_pts$Trigger, ls_pts$Reference)
 
 ls_xy         <- st_coordinates(ls_pts)
 ls_levels     <- sort(unique(ls_pts$Type))
@@ -1359,14 +1368,14 @@ server <- function(input, output, session) {
             
             SO <- if (new_ws2$area_km2 < 1000) 1 else 2
             
-            my_stream_network <- bcdc_query_geodata("freshwater-atlas-stream-network") %>%
+            my_stream_network <- bcdata::bcdc_query_geodata("freshwater-atlas-stream-network") %>%
               filter(INTERSECTS(new_ws2)) %>%
               filter(STREAM_ORDER >= SO) %>%
               filter(!is.na(GNIS_NAME)) %>%
               collect()
             
             if (nrow(my_stream_network) == 0)
-              my_stream_network <- bcdc_query_geodata("freshwater-atlas-stream-network") %>%
+              my_stream_network <- bcdata::bcdc_query_geodata("freshwater-atlas-stream-network") %>%
               filter(INTERSECTS(new_ws2)) %>%
               filter(STREAM_ORDER >= SO) %>%
               collect() %>% mutate(GNIS_NAME = new_ws2$gnis_name)
@@ -1583,7 +1592,7 @@ server <- function(input, output, session) {
             showTab(inputId = "module_tabs", target = "Water Allocations")
             incProgress(1, detail = "Getting water allocations...")
             
-            wap <- bcdc_query_geodata("water-approval-points") %>%
+            wap <- bcdata::bcdc_query_geodata("water-approval-points") %>%
               filter(INTERSECTS(new_ws2)) %>%
               select(WATER_APPROVAL_ID, APPROVAL_TYPE, WORKS_DESCRIPTION, QUANTITY, QUANTITY_UNITS,
                      QTY_DIVERSION_MAX_RATE, QTY_UNITS_DIVERSION_MAX_RATE, APPROVAL_STATUS,
@@ -1595,7 +1604,7 @@ server <- function(input, output, session) {
             if (nrow(wap) == 0)
               wap <- data.frame(lon=-111,lat=55,type="test",QUANTITY="",QUANTITY_UNITS="",APPROVAL_STATUS="",APPROVAL_TYPE="") %>% filter(type!="test")
             
-            wrl <- bcdc_query_geodata("water-rights-licences-public") %>%
+            wrl <- bcdata::bcdc_query_geodata("water-rights-licences-public") %>%
               filter(INTERSECTS(new_ws2)) %>%
               select(POD_NUMBER, POD_SUBTYPE, POD_DIVERSION_TYPE, POD_STATUS, LICENCE_NUMBER, LICENCE_STATUS,
                      LICENCE_STATUS_DATE, PRIORITY_DATE, PURPOSE_USE_CODE, PURPOSE_USE, QUANTITY, QUANTITY_UNITS,
@@ -1687,27 +1696,27 @@ server <- function(input, output, session) {
             slp_cols  <- c("≤60%"="#d9f0d3",">60%"="#1b7837")
             susc_cols <- c("Low"="#1a9641","Low–Moderate"="#a6d96a","Moderate"="orange","High"="#d73027")
             
-            gg_rlf_map <- ggplot() + geom_spatraster(data=map_raster) +
+            gg_rlf_map <- ggplot() + tidyterra::geom_spatraster(data=map_raster) +
               scale_fill_gradientn(colours=rev(hcl.colors(9,"Blues 3")),na.value=NA) + ws_border +
               labs(title="A) Mean Annual Precipitation (1991–2020)", fill="mm/yr") + theme_void()
             output$plot_rlf_map <- renderPlot({ print(gg_rlf_map) })
             
-            gg_rlf_mapz <- ggplot() + geom_spatraster(data=rlf, aes(fill=label)) +
+            gg_rlf_mapz <- ggplot() + tidyterra::geom_spatraster(data=rlf, aes(fill=label)) +
               scale_fill_manual(values=rlf_cols, limits=names(rlf_cols), na.value=NA, drop=FALSE) + ws_border +
               labs(title="B) Precipitation zone", fill=NULL) + theme_void()
             output$plot_rlf_mapz <- renderPlot({ print(gg_rlf_mapz) })
             
-            gg_rlf_slp <- ggplot() + geom_spatraster(data=slp) +
+            gg_rlf_slp <- ggplot() + tidyterra::geom_spatraster(data=slp) +
               scale_fill_gradientn(colours=hcl.colors(9,"Viridis"), na.value=NA) + ws_border +
               labs(title="C) Slope (%)", fill="%") + theme_void()
             output$plot_rlf_slp <- renderPlot({ print(gg_rlf_slp) })
             
-            gg_rlf_slpz <- ggplot() + geom_spatraster(data=slp_cls, aes(fill=label)) +
+            gg_rlf_slpz <- ggplot() + tidyterra::geom_spatraster(data=slp_cls, aes(fill=label)) +
               scale_fill_manual(values=slp_cols, limits=names(slp_cols), na.value=NA, drop=FALSE) + ws_border +
               labs(title="D) Steep terrain (>60%)", fill=NULL) + theme_void()
             output$plot_rlf_slpz <- renderPlot({ print(gg_rlf_slpz) })
             
-            gg_rlf_ls <- ggplot() + geom_spatraster(data=ls_susc, aes(fill=label)) +
+            gg_rlf_ls <- ggplot() + tidyterra::geom_spatraster(data=ls_susc, aes(fill=label)) +
               scale_fill_manual(values=susc_cols, limits=names(susc_cols), na.value=NA, drop=FALSE) + ws_border +
               labs(title="E) Landslide susceptibility (composite)", fill=NULL) + theme_void()
             output$plot_rlf_ls <- renderPlot({ print(gg_rlf_ls) })
@@ -1818,7 +1827,7 @@ server <- function(input, output, session) {
             cols <- setNames(hcl.colors(length(lbls),"Spectral"), lbls)
             
             p_snow_map <- ggplot() +
-              geom_spatraster(data=snow_class) +
+              tidyterra::geom_spatraster(data=snow_class) +
               scale_fill_manual(values=cols, name="Snow season\n(days)", limits=lbls, drop=TRUE, na.value=NA) +
               geom_sf(data=new_ws2_4326, fill=NA, color="black", linewidth=1) +
               theme_void() +
@@ -2342,10 +2351,12 @@ server <- function(input, output, session) {
   
   # USAGE PLOTS ──────────────────────────────────────────────────────────────────
   
-  output$usage_visits <- renderPlot({ plot_usage_visits })
-  output$usage_recent <- renderPlot({ plot_usage_recent })
-  output$usage_top    <- renderPlot({ plot_usage_top    })
-  output$usage_total  <- renderPlot({ plot_usage_total  })
+  usage_plots <- reactive(make_usage_plots())
+  
+  output$usage_visits <- renderPlot({ usage_plots()$visits })
+  output$usage_recent <- renderPlot({ usage_plots()$recent })
+  output$usage_top    <- renderPlot({ usage_plots()$top    })
+  output$usage_total  <- renderPlot({ usage_plots()$total  })
   
 }
 

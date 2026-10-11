@@ -55,6 +55,7 @@ pred_Q_findRef <-
           readRDS("functions_model_app/rf_wsc_pred_station_nat_20240206_LL_A_PROB.RDS")
       }
 
+      requireNamespace("ranger", quietly = TRUE)  # needed for predict() on ranger models
       set.seed(500)
 
       pred_stn <-

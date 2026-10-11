@@ -1,3 +1,7 @@
+# Usage plots are built on demand (when the Usage tab is opened), not at app startup,
+# so the full usage table is only read when someone looks at it.
+make_usage_plots <- function() {
+
 
 d <- dbReadTable(conn, "usage")
 
@@ -137,3 +141,7 @@ plot_usage_total <- df %>%
 
 
 
+
+list(visits = plot_usage_visits, recent = plot_usage_recent,
+     top = plot_usage_top, total = plot_usage_total)
+}
