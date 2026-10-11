@@ -31,8 +31,8 @@ refresh <- function(){
             dbname = Sys.getenv("aw_dbname"),
             host = Sys.getenv("aw_host"),
             port = Sys.getenv("aw_port"),
-            user = "postgres",
-            password = "Alex2014!")
+            user = Sys.getenv("aw_prep_user"),
+            password = Sys.getenv("aw_prep_password"))
   }
 conn <- refresh()
 

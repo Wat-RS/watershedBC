@@ -22,7 +22,6 @@
 #   user = Sys.getenv("aw_user"),
 #   password = Sys.getenv("aw_password")
   # )
-
 conn <- pool::dbPool(
   drv = RPostgres::Postgres(),
   dbname = Sys.getenv("aw_dbname"),
