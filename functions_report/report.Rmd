@@ -1,26 +1,370 @@
 ---
-title: "Watershed Report"
-author: "watershedBC"
-date: "`r format(Sys.time(), '%Y-%m-%d %H:%m %Z')`"
-output: pdf_document
-always_allow_html: true
-params: 
-  new_leaflet2: NA
-  gg_plot_discharge2: NA
-  gg_hyps2: NA
+title: "watershedBC — Watershed Analysis Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    fig_caption: true
+    latex_engine: pdflatex
+    number_sections: true
+    keep_tex: true
+    self_contained: false
+    pandoc_args:
+      - "--no-highlight"
+geometry: "top=1in, bottom=1in, left=1in, right=1in"
+fontsize: 11pt
+# header-includes:
+#   - \usepackage{booktabs}
+#   - \usepackage{longtable}
+#   - \usepackage{array}
+#   - \usepackage{float}
+#   - \usepackage{xcolor}
+#   - \definecolor{bcblue}{HTML}{003366}
+#   - \usepackage{fancyhdr}
+#   - \pagestyle{fancy}
+#   - \fancyhf{}
+#   - \fancyhead[L]{\small watershedBC (v0.1 PROTOTYPE)}
+#   - \fancyhead[R]{\small \textcolor{bcblue}{BC Ministry of Forests}}
+#   - \fancyfoot[C]{\small \thepage}
+#   - \renewcommand{\headrulewidth}{0.4pt}
+params:
+  watershed_name:        "Unknown"
+  watershed_source:      "Unknown"
+  watershed_area_km2:    0
+  run_modules:           !r character(0)
+  new_leaflet:           null
+  gg_map_static:         null    # ← add this
+
+  # Streamflow & Freshwater1
+  gg_discharge:          null
+  gg_hyps:               null
+  gg_fwa:                null
+  table_named:           null
+  # Forest Disturbance
+  gg_timeseries:         null
+  gg_timeseries_cumsum:  null
+  gg_eca:                null
+  gg_elevbins:           null
+  gg_dra:                null
+  # CEF Human Disturbance
+  bc_cef_2021_sum:       null
+  bc_cef_2021_sum_flag:  null
+  # Stream Profile
+  gg_profile:            null
+  # Water Allocations
+  water_auth:            null
+  # ClimateBC
+  gg_mat:                null
+  gg_map_clim:           null
+  gg_pas:                null
+  gg_cmd:                null
+  # Snow Remote Sensing
+  p_snow_map:            null
+  p_snow_elev:           null
+  # Landslide Zonation
+  gg_rlf_map:            null
+  gg_rlf_mapz:           null
+  gg_rlf_slp:            null
+  gg_rlf_slpz:           null
+  gg_rlf_ls:             null
+  # Satellite Imagery
+  r1985:                 null
+  r2020:                 null
+  r2023:                 null
 ---
 
-This is a watershed report.... 
-
-```{r map}
-params$new_leaflet2
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo        = FALSE,
+  warning     = FALSE,
+  message     = FALSE,
+  results     = "asis",
+  fig.pos     = "H",
+  out.width   = "100%"
+)
+options(knitr.table.format = "latex")   # force kable to latex, not html
+library(ggplot2)
+library(dplyr)
+library(terra)
+library(knitr)
+library(sf)
+cat("[REPORT] Setup complete\n")
 ```
 
-```{r discharge}
-params$gg_plot_discharge2
+
+\newpage
+
+# Watershed Summary
+
+```{r summary-table}
+df_summary <- data.frame(
+  Field = c("Watershed name", "Data source", "Area", "Modules run", "Report generated"),
+  Value = c(
+    params$watershed_name,
+    params$watershed_source,
+    paste0(format(params$watershed_area_km2, big.mark = ","), " km\u00b2"),
+    if (length(params$run_modules) > 0) paste(params$run_modules, collapse = "; ") else "None",
+    format(Sys.time(), "%Y-%m-%d %H:%M %Z")
+  )
+)
+knitr::kable(df_summary, col.names = c("", ""), booktabs = TRUE,
+             caption = "Watershed report summary.", format = "latex")
+cat("[REPORT] 1\n")
 ```
 
-```{r hypsometry}
-params$gg_hyps2
+**Disclaimer:** watershedBC is a prototype — results are not validated and should not be
+used for regulatory or engineering decisions.
+
+# Watershed Map
+
+<!-- ```{r map-image, fig.cap="Watershed map with all active overlays at time of report generation.", fig.height=6} -->
+<!-- if (!is.null(params$map_png) && file.exists(params$map_png)) { -->
+<!--   knitr::include_graphics(params$map_png) -->
+<!-- } else { -->
+<!--   plot(1, type = "n", axes = FALSE, xlab = "", ylab = "") -->
+<!--   text(1, 1, "Map capture unavailable.\nPlease ensure webshot2 or webshot is installed.", cex = 1.2, col = "grey40") -->
+<!-- } -->
+<!-- ``` -->
+
+```{r map-static, fig.cap="Watershed map with overlays.", fig.height=6}
+print(params$gg_map_static)
+cat("[REPORT] 2\n")
 ```
 
+
+\newpage
+
+---
+
+```{r modules-check}
+# Helper: check if a module was run
+module_run <- function(name) name %in% params$run_modules
+```
+
+---
+
+# Module Results
+
+```{r no-modules-msg, results='asis', eval=length(params$run_modules) == 0}
+cat("*No modules were selected for this report.*\n")
+```
+
+---
+
+<!-- ═══════════════════════════════════════════════════════════════ STREAMFLOW -->
+
+```{r sf-header, results='asis', eval=module_run("Streamflow and Freshwater")}
+cat("## Streamflow and Freshwater\n\n")
+```
+
+```{r sf-discharge, fig.cap="Estimated daily mean discharge. Reference station scaling model (prototype — not validated).", fig.height=4, eval=module_run("Streamflow and Freshwater") && !is.null(params$gg_discharge)}
+print(params$gg_discharge)
+```
+
+```{r sf-hyps, fig.cap="Basin hypsometric curve with h60 index and Melton Ratio.", fig.height=4, eval=module_run("Streamflow and Freshwater") && !is.null(params$gg_hyps)}
+print(params$gg_hyps)
+```
+
+```{r sf-fwa, fig.cap="Freshwater Atlas water body coverage (lakes, wetlands, glaciers) by type.", fig.height=3.5, eval=module_run("Streamflow and Freshwater") && !is.null(params$gg_fwa)}
+print(params$gg_fwa)
+```
+
+```{r sf-table, eval=module_run("Streamflow and Freshwater") && !is.null(params$table_named), results='asis'}
+cat("**Named watersheds intersecting this basin:**\n\n")
+knitr::kable(
+  params$table_named %>% dplyr::rename(Name = gnis_name, `Area (km²)` = area_km2),
+  booktabs = TRUE, caption = "Named FWA sub-basins — upstream, watershed of interest, and downstream.", format = "latex"
+)
+```
+
+---
+
+<!-- ═══════════════════════════════════════════════════════ FOREST DISTURBANCE -->
+
+```{r fd-header, results='asis', eval=module_run("Forest Disturbance")}
+cat("## Forest Disturbance\n\n")
+```
+
+```{r fd-timeseries, fig.cap="Annual wildfire and cutblock disturbance area (1900–present).", fig.height=4, eval=module_run("Forest Disturbance") && !is.null(params$gg_timeseries)}
+print(params$gg_timeseries)
+```
+
+```{r fd-cumsum, fig.cap="Cumulative disturbance as percentage of total watershed area.", fig.height=4, eval=module_run("Forest Disturbance") && !is.null(params$gg_timeseries_cumsum)}
+print(params$gg_timeseries_cumsum)
+```
+
+```{r fd-eca, fig.cap="Simplified Equivalent Clearcut Area (ECA) — 60-year linear recovery applied to both fire and harvest.", fig.height=4, eval=module_run("Forest Disturbance") && !is.null(params$gg_eca)}
+print(params$gg_eca)
+```
+
+```{r fd-elevbins, fig.cap="Distribution of disturbance and water body types across 100 m elevation bands.", fig.height=5, eval=module_run("Forest Disturbance") && !is.null(params$gg_elevbins)}
+print(params$gg_elevbins)
+```
+
+```{r fd-dra, fig.cap="Road network length by surface type (BC Digital Road Atlas).", fig.height=3.5, eval=module_run("Forest Disturbance") && !is.null(params$gg_dra)}
+print(params$gg_dra)
+```
+
+---
+
+<!-- ════════════════════════════════════════════════════════ CEF HUMAN DISTURB -->
+
+```{r cef-header, results='asis', eval=module_run("CEF Human Disturbance - 2021")}
+cat("## CEF Human Disturbance — 2021\n\n")
+```
+
+```{r cef-group, fig.cap="CEF Human Disturbance 2021 — area by disturbance group (km\u00b2).", fig.height=4, eval=module_run("CEF Human Disturbance - 2021") && !is.null(params$bc_cef_2021_sum)}
+params$bc_cef_2021_sum %>%
+  mutate(label = gsub("BTM - ", "", gsub("_", " ", cef_disturb_group))) %>%
+  ggplot(aes(reorder(label, area), area, fill = cef_human_disturb_flag)) +
+  geom_col() + coord_flip() + theme_bw() +
+  labs(x = "", y = "Area (km\u00b2)", fill = "Flag",
+       title = "CEF Human Disturbance 2021 — by disturbance group")
+```
+
+```{r cef-flag, fig.cap="CEF Human Disturbance 2021 — area by high-level flag.", fig.height=3, eval=module_run("CEF Human Disturbance - 2021") && !is.null(params$bc_cef_2021_sum_flag)}
+params$bc_cef_2021_sum_flag %>%
+  mutate(label = gsub("_", " ", cef_human_disturb_flag)) %>%
+  ggplot(aes(reorder(label, area), area)) +
+  geom_col(fill = "steelblue") + coord_flip() + theme_bw() +
+  labs(x = "", y = "Area (km\u00b2)",
+       title = "CEF Human Disturbance 2021 — by flag")
+```
+
+---
+
+<!-- ═══════════════════════════════════════════════════════════ STREAM PROFILE -->
+
+```{r sp-header, results='asis', eval=module_run("Stream Profile")}
+cat("## Stream Profile\n\n")
+```
+
+```{r sp-profile, fig.cap="Longitudinal stream elevation profiles for main stem and major named tributaries.", fig.height=4.5, eval=module_run("Stream Profile") && !is.null(params$gg_profile)}
+print(params$gg_profile)
+```
+
+---
+
+<!-- ══════════════════════════════════════════════════════ WATER ALLOCATIONS -->
+
+```{r wa-header, results='asis', eval=module_run("Water Allocations")}
+cat("## Water Allocations\n\n")
+```
+
+```{r wa-plot, fig.cap="Annualised water allocation volumes by licence/approval type. All quantities converted to m\u00b3/yr.", fig.height=3.5, eval=module_run("Water Allocations") && !is.null(params$water_auth)}
+params$water_auth %>%
+  ggplot(aes(reorder(TYPE, SUM), SUM)) +
+  geom_col(fill = "steelblue") + coord_flip() + theme_bw() +
+  scale_y_continuous(labels = function(x) format(x, big.mark = ",", scientific = FALSE)) +
+  labs(y = "Annualised volume (m\u00b3/yr)", x = "",
+       title = "Water allocations by licence/approval type")
+```
+
+---
+
+<!-- ══════════════════════════════════════════════════════════════ CLIMATEBC -->
+
+```{r cb-header, results='asis', eval=module_run("ClimateBC")}
+cat("## ClimateBC\n\n*Historic normals and projected future climate under four SSP scenarios. Shaded bands = 25th–75th percentile across watershed; points = spatial mean.*\n\n")
+```
+
+```{r cb-mat, fig.cap="Mean Annual Temperature (°C) — historic normals and CMIP6 projections.", fig.height=3.5, eval=module_run("ClimateBC") && !is.null(params$gg_mat)}
+print(params$gg_mat)
+```
+
+```{r cb-map, fig.cap="Mean Annual Precipitation (mm/yr) — historic normals and CMIP6 projections.", fig.height=3.5, eval=module_run("ClimateBC") && !is.null(params$gg_map_clim)}
+print(params$gg_map_clim)
+```
+
+```{r cb-pas, fig.cap="Precipitation as Snow (mm/yr) — historic normals and CMIP6 projections.", fig.height=3.5, eval=module_run("ClimateBC") && !is.null(params$gg_pas)}
+print(params$gg_pas)
+```
+
+```{r cb-cmd, fig.cap="Cumulative Moisture Deficit (mm) — proxy for summer drought stress.", fig.height=3.5, eval=module_run("ClimateBC") && !is.null(params$gg_cmd)}
+print(params$gg_cmd)
+```
+
+---
+
+<!-- ══════════════════════════════════════════════════════ SNOW REMOTE SENSING -->
+
+```{r sn-header, results='asis', eval=module_run("Snow Remote Sensing")}
+cat("## Snow Remote Sensing\n\n*Multi-sensor composite: MODIS, VIIRS, and Landsat 2001–2023.*\n\n")
+```
+
+```{r sn-map, fig.cap="Snow season duration — median days per year with >50\\% snow probability, 2001–2023.", fig.height=5, eval=module_run("Snow Remote Sensing") && !is.null(params$p_snow_map)}
+print(params$p_snow_map)
+```
+
+```{r sn-elev, fig.cap="Snow line elevation through the water year — median day-of-year 2001–2023.", fig.height=4, eval=module_run("Snow Remote Sensing") && !is.null(params$p_snow_elev)}
+print(params$p_snow_elev)
+```
+
+---
+
+<!-- ══════════════════════════════════════════════════════ LANDSLIDE ZONATION -->
+
+```{r ls-header, results='asis', eval=module_run("Landslide Zonation")}
+cat("## Landslide Zonation\n\n*Simplified first-pass screening only — NOT validated for engineering or permitting use.*\n\n")
+```
+
+```{r ls-row1, fig.cap="A) Mean Annual Precipitation (mm/yr, continuous) and B) Precipitation zone classification.", fig.height=3.5, fig.width=7, eval=module_run("Landslide Zonation") && !is.null(params$gg_rlf_map) && !is.null(params$gg_rlf_mapz)}
+gridExtra::grid.arrange(params$gg_rlf_map, params$gg_rlf_mapz, ncol = 2)
+```
+
+```{r ls-row2, fig.cap="C) Slope gradient (%) and D) Steep terrain classification (threshold: 60%).", fig.height=3.5, fig.width=7, eval=module_run("Landslide Zonation") && !is.null(params$gg_rlf_slp) && !is.null(params$gg_rlf_slpz)}
+gridExtra::grid.arrange(params$gg_rlf_slp, params$gg_rlf_slpz, ncol = 2)
+```
+
+```{r ls-composite, fig.cap="E) Composite landslide susceptibility index (5 classes: Low to High).", fig.height=4.5, eval=module_run("Landslide Zonation") && !is.null(params$gg_rlf_ls)}
+print(params$gg_rlf_ls)
+```
+
+---
+
+<!-- ══════════════════════════════════════════════════════ SATELLITE IMAGERY -->
+
+```{r si-header, results='asis', eval=module_run("Satellite Imagery")}
+cat("## Satellite Imagery\n\n*True-colour surface reflectance composites served as Cloud-Optimised GeoTIFFs from AWS S3 (ca-central-1). Watershed boundary in red.*\n\n")
+```
+
+```{r si-1985, fig.cap="Landsat 5 TM — 1985–1990 median composite (RGB true colour, 30 m). Source: USGS Collection 2 L2.", fig.height=5.5, eval=module_run("Satellite Imagery") && !is.null(params$r1985)}
+terra::plotRGB(params$r1985, r = 1, g = 2, b = 3,
+               main = "Landsat TM — 1985–1990 mosaic (true colour)")
+```
+
+```{r si-2020, fig.cap="Landsat 8/9 OLI — 2020–2023 median composite (RGB true colour, 30 m). Source: USGS Collection 2 L2.", fig.height=5.5, eval=module_run("Satellite Imagery") && !is.null(params$r2020)}
+terra::plotRGB(params$r2020, r = 1, g = 2, b = 3,
+               main = "Landsat OLI — 2020–2023 mosaic (true colour)")
+```
+
+```{r si-2023, fig.cap="Sentinel-2 MSI — 2023 median composite (RGB true colour, 10 m). Source: ESA Copernicus L2A.", fig.height=5.5, eval=module_run("Satellite Imagery") && !is.null(params$r2023)}
+terra::plotRGB(params$r2023, r = 1, g = 2, b = 3,
+               main = "Sentinel-2 MSI — 2023 mosaic (true colour)")
+```
+
+---
+
+\newpage
+
+# Data Sources and Disclaimers
+
+**watershedBC is a prototype.** All outputs are indicative only and have not been validated.
+Do not use for regulatory, engineering, or water management decisions.
+
+| Module | Primary Source |
+|---|---|
+| Watershed polygons | BC Freshwater Atlas; Water Survey of Canada; BC Ministry of Forests |
+| Streamflow estimates | WSC HYDAT; Random forest model (not validated) |
+| Forest Disturbance | BC Consolidated Cutblocks; BC Historical Wildfire Perimeters — BC Data Catalogue |
+| CEF Human Disturbance | BC CEF Disturbance Footprint 2021 — BC Data Catalogue |
+| Stream Profile | BC FWA Stream Network XYZ vertices |
+| Water Allocations | BC Water Rights Licences; Water Approval Points — BC Data Catalogue |
+| ClimateBC | ClimateBC v7.3 (Wang et al. 2016, *PLOS ONE*); CMIP6 13-GCM ensemble |
+| Snow Remote Sensing | MODIS Terra/Aqua; VIIRS; Landsat — multi-sensor composite 2001–2023 |
+| Landslide Zonation | Copernicus GLO-30 DEM; ClimateBC MAP 1991–2020 |
+| Satellite Imagery | USGS Landsat Collection 2 L2; ESA Copernicus Sentinel-2 L2A |
+
+**More information:** <https://github.com/bcgov/watershedBC/>  
+**Contact:** alex.bevington\@unbc.ca

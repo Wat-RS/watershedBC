@@ -11,7 +11,12 @@
 # Example code in package build process
 *-Ex.R
 # Output files from R CMD build
+/*.pdf
+/*.tar
 /*.tar.gz
+*.pdf
+*.tar
+*.tar.gz
 # Output files from R CMD check
 /*.Rcheck/
 # RStudio files
@@ -31,6 +36,7 @@ cred.csv
 /*.RMD
 /*.rmd
 /rsconnect/
+/precompute/
 /test/
 /testing/
 /monitoring_functions/
@@ -41,3 +47,4 @@ packrat/lib*/
 test
 renv
 renv.lock
+watershedBC_backup.tar

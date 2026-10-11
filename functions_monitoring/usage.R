@@ -1,14 +1,19 @@
 
-d <- dbReadTable(conn, "usage", )
+d <- dbReadTable(conn, "usage")
 
 (df <- d %>%
-  # as_tibble() %>%
-  select(session_token, date_time, gnis_name, processing_time, action, area_km2) %>%
-  filter(processing_time != "") %>%
-  mutate(time = case_when(str_detect(processing_time, "minute") ~ as.numeric(str_replace(processing_time, " minutes elapsed", "")),
-                          str_detect(processing_time, "sec") ~ as.numeric(str_replace(processing_time, " sec elapsed", ""))/60,
-                          TRUE ~ -9999)) %>%
-  mutate(date_time = as_datetime(date_time) %>% with_tz("America/Vancouver")) %>%
+    # as_tibble() %>%
+    select(session_token, date_time, gnis_name, processing_time, action, area_km2) %>%
+    filter(processing_time != "") %>%
+    filter(!is.na(processing_time)) %>%
+    as_tibble() %>%
+    # select(processing_time) %>%
+    mutate(time_type = str_split_fixed(processing_time," ",3)[,2],
+           processing_time =  str_split_fixed(processing_time," ",3)[,1]) %>%
+    mutate(processing_time = case_when(time_type == "minutes" ~ as.numeric(processing_time),
+                            time_type == "sec" ~ as.numeric(processing_time)/60,
+                            TRUE ~ -9999)) %>%
+    mutate(date_time = as_datetime(date_time) %>% with_tz("America/Vancouver")) %>%
   mutate(date = as.Date.character(as.character(date_time), format = "%Y-%m-%d")) %>%
   mutate(row = row_number()) %>%
   arrange(rev(date_time)))

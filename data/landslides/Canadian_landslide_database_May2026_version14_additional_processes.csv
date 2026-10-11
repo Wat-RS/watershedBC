@@ -1,0 +1,34 @@
+﻿LS_ID,Name,Longitude,Latitude,Type,Material,Size_class,Timing,Trigger,Contributing_factor,Reference,Deformation_InSAR_data,Landslide_dammed_lake,Type_details,Cont_details,Resource_road_activity,Resource_road_type,Study_area,Watercourse,Event_verification,Volume_m3,Discharge_estimate_m3/s,Deposit_area_m2,Bedrock_type,Point_location,Location_confidence,Comment,Modified_in_version
+Add0001,TKg,-138.278,64.42604819,Gullying,Surficial,,,,Thermokarst,McKillop et al. 2016,,,,,,,,,,,,,,,,,1
+Add0002,Gullying,-137.3111,65.97907676,Gullying,Surficial,,,,Thermokarst,McKillop et al. 2016,,,,,,,,,,,,,,,,,9
+Add0003,TKs,-138.4114,64.69421011,Subsidence,Surficial,,,,,McKillop et al. 2016,,,,,,,,,,,,,,,,,1
+Add0004,TKs,-138.409,64.69111837,Subsidence,Surficial,,,,,McKillop et al. 2016,,,,,,,,,,,,,,,,,1
+Add0005,TKs,-138.3328,64.60588797,Subsidence,Surficial,,,,,McKillop et al. 2016,,,,,,,,,,,,,,,,,1
+Add0006,TKs,-138.3299,64.84382109,Subsidence,Surficial,,,,,McKillop et al. 2016,,,,,,,,,,,,,,,,,1
+Add0007,TKs,-136.2289,66.9564942,Subsidence,Surficial,,,,,McKillop et al. 2016,,,,,,,,,,,,,,,,,1
+Add0008,Britannia Beach,-123.2063,49.62538093,Submarine landslide,Surficial,,19211028,,,Blais-Stevens and Septer; 2008,,,,,,,,,,,,,,,Moderate,,8
+Add0009,Woodfibre/Mill Ck,-123.2481,49.66802343,Submarine landslide,Surficial,,19550822,,,Blais-Stevens and Septer; 2008,,,,,,,,,,,,,,,Moderate,,8
+Add0010,Squamish Delta,-123.1761,49.69019194,Submarine landslide,Surficial,,19570627,,,Blais-Stevens and Septer; 2008,,,,,,,,,,,,,,,Moderate,,8
+Add0011,Gullying,-138.35431,64.78981,Gullying,Surficial,,,,,Sladen et al. 2022,,,,,,,,,,,,,,Headscarp,Moderate,,10.1
+Add0012,Lakeview Dividend mine subsidence,-119.493331,49.011815,Subsidence,Rock,,,,,Steller et al. 2008,,,,,,,,,,,,,,Headscarp,High,Abandoned mine hazard posed by remaining adits shafts unstable rock ledge and a stope partially collapse to surface.,11
+Add0013,Sinkholes,-119.631776,49.820927,Subsidence,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,11
+Add0014,Sage Mesa sinkholes,-119.620021,49.513904,Subsidence,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,11
+Add0015,Karst,-125.919307,49.962158,Subsidence,Rock,,,,,,,,,,,,,,,,,,,Headscarp,Moderate,,11
+Add0016,Karst,-127.87374,50.61596,Subsidence,Rock,,,,,,,,,,,,,,,,,,,Headscarp,High,,13
+Add0017,Karst,-128.20285,50.69771,Subsidence,Rock,,,,,,,,,,,,,,,,,,,Headscarp,High,,13
+Add0018,Karst,-128.22209,50.69157,Subsidence,Rock,,,,,,,,,,,,,,,,,,,Headscarp,High,,13
+Add0019,Kitimat Inlet 1974,-128.65607,53.98791,Submarine landslide,Surficial,,19741017,,,Conway et al. 2012,,,,,,,,,,,,,,Headscarp,Moderate,,13
+Add0020,Kitimat Inlet 1975,-128.6966,53.98385,Submarine landslide,Surficial,,19750427,,,Conway et al. 2012,,,,,,,,,,,,,,Headscarp,Moderate,,13
+Add0021,Grand Banks landslide,-56.085191,44.473862,Submarine landslide,Surficial,,19291118,Earthquake,,Lovholt et al. 2018,,,,,,,,,,,,,,Headscarp,Low,,13
+Add0022,Seawatch sinkholes,-123.794948,49.507596,Subsidence,Surficial,,,,,,,,,,,,,,,,,,,Source,Moderate,,13
+Add0023,Gullying,-113.48011,49.70497,Gullying,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,14
+Add0024,Gullying,-118.750405,49.736565,Gullying,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,14
+Add0025,Gullying,-124.95141,58.55902,Gullying,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,14
+Add0026,Gullying,-124.93317,58.55253,Gullying,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,14
+Add0027,Gullying,-120.82525,54.32622,Gullying,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,14
+Add0028,Gullying,-120.82141,54.33058,Gullying,Surficial,,,,,,,,,,,,,,,,,,,Headscarp,High,,14
+Add0029,Grief Point,-124.53029,49.80059,Submarine landslide,Surficial,,19460623,Earthquake,,Mosher 2009,,,,,,,,,,,,,,Headscarp,Moderate,,14
+Add0030,Comox,-124.92526,49.6593,Submarine landslide,Surficial,,19460623,Earthquake,,Mosher 2009,,,,,,,,,,,,,,Headscarp,Moderate,,14
+Add0031,Mapleguard Spit,-124.73662,49.46593,Submarine landslide,Surficial,,19460623,Earthquake,,Mosher 2009,,,,,,,,,,,,,,Headscarp,Moderate,,14
+Add0032,Beaufort shelf,-135.483,70.746,Submarine landslide,Surficial,,,,,Hill et al. 1982; Bennett et al. 2008,,,,,,,,,,,,,,Headscarp,Low,,14
+Add0033,Sand Heads ,-123.3121,49.1012,Submarine landslide,Surficial,,,,,McKenna et al. 1992,,,,,,,,,,,,,,Headscarp,Moderate,,14

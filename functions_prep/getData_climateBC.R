@@ -1,11 +1,12 @@
 
 library(dplyr)
 library(stars)
-# library(ClimateNAr)
+library(ClimateNAr)
 
-wd <- "C:/Users/bevington/Downloads/test"
+wd <- "functions_prep/climatebc2"
 dir.create(wd)
-vars = c("MAT","MAP","CMD")
+
+vars = c("MAT","MAP","CMD", "PAS")
 
 rasterDownload(region='BC', res='800m', period='Normal_1961_1990', varList=vars, sDir=wd)
 rasterDownload(region='BC', res='800m', period='Normal_1971_2000', varList=vars, sDir=wd)
@@ -34,12 +35,18 @@ clim_to_cog <- function(region='BC', res='800m', period="13GCMs_ensemble_ssp585_
 
   (tif <- paste0(wd,"/",region,"/",res,"/",period,"/",varList,".tif"))
   (outtif <- paste0(wd,"/",region,"_",res,"_",period,"_",varList,"_cog.tif"))
-
+  file.remove(outtif)
   sf::gdal_utils(util = "translate",
                  source = tif,
                  destination = outtif,
-                 options = c("-of","COG",
-                             "-co","COMPRESS=LZW"))
+                 options = c(
+                   "-of",  "COG",
+                   "-co",  "COMPRESS=LZW",
+                   "-co",  "BLOCKSIZE=512",
+                   "-co",  "OVERVIEWS=AUTO",       # <-- was missing
+                   "-co",  "RESAMPLING=AVERAGE",
+                   "-co",  "OVERVIEW_COMPRESS=LZW"
+                 ))
   }
 
 periods <- c( 'Normal_1961_1990',
@@ -71,12 +78,25 @@ for(p in periods){
   }
 }
 
-l <- list.files(wd, recursive = F, full.names = T, pattern = "*.tif$")
+l <- list.files(wd, recursive = F, full.names = T, pattern = "*_cog.tif$")
+# 
+# climateBC <- terra::rast(l)
+# 
+# plot(climateBC)
+# 
+# 
+# 
+# 
+# sf::gdal_utils(util = "translate",
+#                source = "functions_prep/climatebc/climateBC_v2.tif",
+#                destination = "functions_prep/climatebc/climateBC_v2_cog.tif",
+#                options = c("-of","COG",
+#                            "-co","COMPRESS=LZW"))
 
-stars::read_stars(l, along = "band") %>% write_stars("climateBC.tif")
 
-terra::rast("/vsicurl/https://bcbasin.s3.ca-central-1.amazonaws.com/climateBC.tif")
-
+# terra::rast("/vsicurl/https://bcbasin.s3.ca-central-1.amazonaws.com/climateBC_cog/BC_800m_Normal_1961_1990_PAS_cog.tif")
+# terra::rast("/vsicurl/https://bcbasin.s3.ca-central-1.amazonaws.com/climateBC_v2_cog.tif")
+                      
 # annual_vars <- c("MAT",#mean annual temperature (°C),
 #                  "MWMT",#mean warmest month temperature (°C),
 #                  "MCMT",#mean coldest month temperature (°C),
