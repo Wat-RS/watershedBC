@@ -1,3 +1,21 @@
+# Static donut for the PDF, matching the app's plotly CEF pie charts (same labels and percentages)
+cef_donut <- function(df, label_col, title) {
+  if (is.null(df) || nrow(df) == 0) return(NULL)
+  df <- df %>%
+    ungroup() %>%
+    mutate(label = gsub("_", " ", gsub("BTM - ", "", .data[[label_col]]))) %>%
+    group_by(label) %>% summarize(area = sum(area), .groups = "drop") %>%
+    mutate(pct = 100 * area / sum(area))
+  ggplot(df, aes(x = 2, y = area, fill = label)) +
+    geom_col(colour = "white") +
+    geom_text(aes(label = ifelse(pct >= 3, paste0(round(pct, 1), "%"), "")),
+              position = position_stack(vjust = 0.5), size = 3) +
+    coord_polar(theta = "y") +
+    xlim(0.4, 2.5) +                       # inner hole ~ plotly hole = 0.6
+    theme_void() +
+    labs(title = title, fill = NULL)
+}
+
 # Writes straight to the download handler's file (a shared global path let concurrent
 # sessions overwrite each other's report)
 render_report <- function(my_params, pdf_path) {
@@ -41,8 +59,10 @@ render_report <- function(my_params, pdf_path) {
     
     # ── CEF Human Disturbance ────────────────────────────────────────────────
     if ("CEF Human Disturbance - 2021" %in% my_params$run_modules) {
-      pg(my_params$gg_cef_group)
-      pg(my_params$gg_cef_flag)
+      pg(cef_donut(my_params$bc_cef_2021_sum, "cef_disturb_group",
+                   "CEF Human Disturbance 2021 — by disturbance group"))
+      pg(cef_donut(my_params$bc_cef_2021_sum_flag, "cef_human_disturb_flag",
+                   "CEF Human Disturbance 2021 — summarised by flag"))
     }
     
     # ── Stream Profile ───────────────────────────────────────────────────────

@@ -178,7 +178,7 @@ map_toolbar <- tags$div(
               icon("expand"), "Full Screen"),
   tags$button(id = "map_pdf", class = "btn btn-default",
               style = "font-size:12px; padding:4px 12px;",
-              icon("file-pdf"), "Export PDF")
+              icon("file-pdf"), "Export Map PDF")
 )
 
 # ── Build the map ───────────────────────────────────────────────────────────

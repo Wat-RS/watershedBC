@@ -38,16 +38,13 @@ postgis_get_point <-
   
   function(to_clip = "dams",
            my_wkt = new_ws2_wkt) {
+    # watershed WKT is sent/parsed once (CTE) instead of twice
     q <-
       paste0(
-        "SELECT w.*, ST_Intersection(w.geom,ST_GeomFromText('",
-        my_wkt,
-        "', 3005)) AS geom
-                    FROM ",
-        to_clip,
-        " w WHERE ST_Intersects(w.geom,ST_GeomFromText('",
-        my_wkt,
-        "', 3005))"
+        "WITH clip AS (SELECT ST_GeomFromText('", my_wkt, "', 3005) AS geom) ",
+        "SELECT w.*, ST_Intersection(w.geom, c.geom) AS geom ",
+        "FROM ", to_clip, " w, clip c ",
+        "WHERE ST_Intersects(w.geom, c.geom)"
       )
     o <-  st_read(conn, query = q, quiet = T)
     if (nrow(o) == 0) {
@@ -64,16 +61,15 @@ postgis_get_point <-
 
 postgis_get_line <-
   function(to_clip = "dra", my_wkt = new_ws2_wkt) {
+    # Lines lying wholly inside the watershed skip the (expensive) ST_Intersection
     q <-
       paste0(
-        "SELECT w.*, ST_SimplifyPreserveTopology(ST_Intersection(w.geom,ST_GeomFromText('",
-        my_wkt,
-        "', 3005)),5) AS geom
-                    FROM ",
-        to_clip,
-        " w WHERE ST_Intersects(w.geom,ST_GeomFromText('",
-        my_wkt,
-        "', 3005))"
+        "WITH clip AS (SELECT ST_GeomFromText('", my_wkt, "', 3005) AS geom) ",
+        "SELECT w.*, ST_SimplifyPreserveTopology(",
+        "  CASE WHEN ST_CoveredBy(w.geom, c.geom) THEN w.geom ",
+        "       ELSE ST_Intersection(w.geom, c.geom) END, 5) AS geom ",
+        "FROM ", to_clip, " w, clip c ",
+        "WHERE ST_Intersects(w.geom, c.geom)"
       )
     o <-  st_read(conn, query = q, quiet = T)
     if (nrow(o) > 0) {
@@ -91,6 +87,22 @@ postgis_get_line <-
   }
 
 # POL ####
+
+# Non-geometry columns of a table as "w.col, ..." (cached per process). Used instead of `*`,
+# which also returned the full unclipped source geometry plus a copy of the watershed polygon
+# on every row (all dropped in R) -- e.g. a 598k-vertex CEF polygon sent over the wire.
+postgis_cols_cache <- new.env()
+postgis_cols <- function(tbl) {
+  if (is.null(postgis_cols_cache[[tbl]])) {
+    f <- dbGetQuery(conn,
+      "SELECT column_name FROM information_schema.columns
+        WHERE table_name = $1 AND table_schema = ANY(current_schemas(false))
+          AND udt_name NOT IN ('geometry', 'geography')
+        ORDER BY ordinal_position", params = list(tbl))$column_name
+    postgis_cols_cache[[tbl]] <- paste0('w."', gsub('"', '""', unique(f)), '"', collapse = ", ")
+  }
+  postgis_cols_cache[[tbl]]
+}
 
 postgis_get_pol <- function(to_clip = "fire",
                             to_clip_cols_to_keep = "*",
@@ -111,22 +123,31 @@ postgis_get_pol <- function(to_clip = "fire",
       paste0("ST_MakeValid(ST_GeomFromText('", my_wkt, "', 3005))")
     }
     
+    # Cheap pre-clip of each source polygon to the watershed bbox (+10 m) before the costly
+    # ST_MakeValid / ST_Intersection -- large provincial polygons otherwise get processed whole
+    w_box  <- "ST_ClipByBox2D(w.geom, ST_Expand(c.geom::box2d, 10))"
     w_geom <- if (gs > 0) {
-      paste0("ST_ReducePrecision(ST_MakeValid(w.geom), ", gs, ")")
+      paste0("ST_ReducePrecision(ST_MakeValid(", w_box, "), ", gs, ")")
     } else {
-      "ST_MakeValid(w.geom)"
+      paste0("ST_MakeValid(", w_box, ")")
     }
+
+    cols <- if (identical(to_clip_cols_to_keep, "*")) postgis_cols(to_clip) else to_clip_cols_to_keep
     
+    # The clipped geometry is computed once per row (LATERAL; OFFSET 0 stops the planner
+    # inlining it back into both SELECT and WHERE), and polygons lying wholly inside the
+    # watershed skip ST_Intersection. Output columns are the same as before.
     paste0(
       "WITH clip AS (SELECT ", clip_geom, " AS geom) ",
-      "SELECT ", to_clip_cols_to_keep, ", ",
-      "  ST_CollectionExtract( ",
-      "    ST_MakeValid( ST_Intersection(", w_geom, ", c.geom) ), 3) AS clip_geom ",
-      "FROM ", to_clip, " w, clip c ",
+      "SELECT ", if (nzchar(cols)) paste0(cols, ", "), "x.clip_geom ",
+      "FROM ", to_clip, " w ",
+      "CROSS JOIN clip c ",
+      "CROSS JOIN LATERAL (SELECT ", w_geom, " AS vg OFFSET 0) v ",
+      "CROSS JOIN LATERAL (SELECT ST_CollectionExtract(",
+      "    CASE WHEN ST_CoveredBy(v.vg, c.geom) THEN v.vg ",
+      "         ELSE ST_MakeValid(ST_Intersection(v.vg, c.geom)) END, 3) AS clip_geom OFFSET 0) x ",
       "WHERE ST_Intersects(w.geom, c.geom) ",
-      "  AND NOT ST_IsEmpty(",
-      "        ST_CollectionExtract(",
-      "          ST_MakeValid( ST_Intersection(", w_geom, ", c.geom) ), 3))"
+      "  AND NOT ST_IsEmpty(x.clip_geom)"
     )
   }
   
@@ -163,7 +184,8 @@ postgis_get_pol <- function(to_clip = "fire",
     st_make_valid() %>%
     filter(!st_is_empty(.)) %>%
     filter(st_geometry_type(.) %in% c("POLYGON", "MULTIPOLYGON")) %>%
-    ms_explode() %>%
+    st_cast("MULTIPOLYGON") %>%
+    { suppressWarnings(st_cast(., "POLYGON")) } %>%   # explode parts; rmapshaper::ms_explode (V8) ran out of memory on CEF
     mutate(clipped_area_m2 = as.numeric(st_area(.))) %>%
     filter(clipped_area_m2 > min_area_km2 * (1000 * 1000))
   

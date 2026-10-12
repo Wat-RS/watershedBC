@@ -32,6 +32,18 @@ get_snow_vrt <- function() {
   snow_vrt_file
 }
 
+# Distinct-visit count for the footer: one query per process every 10 min instead of a
+# full scan of the usage table on every app open
+visit_cache <- new.env()
+get_visit_count <- function(max_age_s = 600) {
+  if (is.null(visit_cache$n) || difftime(Sys.time(), visit_cache$at, units = "secs") > max_age_s) {
+    n <- tryCatch(dbGetQuery(conn, "SELECT count(DISTINCT session_token)::int AS n FROM usage")$n,
+                  error = function(e) NA)
+    if (!is.na(n)) { visit_cache$n <- n; visit_cache$at <- Sys.time() }
+  }
+  visit_cache$n %||% NA   # on a failed refresh, keep showing the last good count
+}
+
 onStop(function() {
   cat("Closing Database Connections")
   pool::poolClose(conn)
@@ -76,6 +88,24 @@ add_landslide_points <- function(map) {
     fillColor = ls_pal(ls_pts$Type), radius = 10, fillOpacity = 0.8,
     popup = ls_pts$lab)
 }
+
+# Map groups ────────────────────────────────────────────────────────────────
+BASE_GROUPS    <- c("BC Basemap","WorldImagery","WorldTopoMap","Landsat 2000","Landsat 2021")
+REF_OVERLAYS   <- c(LS_GROUP, "WSC Active", "WSC Discontinued", "BC Streams", "BC Roads", "BC Place Names")
+# Layers added by a run; cleared on each new selection/run
+RESULT_GROUPS  <- c("Sub-basins","FWA Wetland","FWA Lake","FWA Glacier","Glacier 1985","Glacier 2021",
+                    "Fire","Cutblock","Roads","Water Rights","Water Approvals")
+
+# Display-only simplification (~10 m) before sending result geometry to the browser;
+# analysis and downloads keep the full-resolution objects
+map_simplify <- function(x, tol = 10) {
+  x <- sf::st_as_sf(dplyr::ungroup(x))
+  if (nrow(x) == 0) return(st_transform(x, 4326))
+  x %>% st_transform(3005) %>% st_simplify(preserveTopology = TRUE, dTolerance = tol) %>% st_transform(4326)
+}
+
+# leaflet errors on a zero-length label vector (empty layer), so pass NULL instead
+map_label <- function(x) if (length(x) == 0) NULL else x
 
 # Helper: landslide in-view tally + lazy-load hook + collapsible legends for any leaflet map
 add_landslides <- function(map) {
@@ -191,6 +221,10 @@ add_landslides <- function(map) {
         makeLegendsCollapsible();
         map.on('overlayadd', makeLegendsCollapsible);
         map.on('overlayremove', makeLegendsCollapsible);
+        // legends added after a run arrive via leafletProxy, so watch the control corners too
+        var corners = el.querySelector('.leaflet-control-container');
+        if (corners && window.MutationObserver)
+          new MutationObserver(makeLegendsCollapsible).observe(corners, {childList: true, subtree: true});
       }
     ")
 }
@@ -380,7 +414,7 @@ ui <-
                                               textOutput(outputId = "ws_selection_pred_time"),
                                               br(), br(),
                                               
-                                              shinyjs::hidden(downloadButton("downloadPDF",         "Export PDF")),
+                                              shinyjs::hidden(downloadButton("downloadPDF",         "Export Report PDF")),
                                               shinyjs::hidden(downloadButton("downloadAllSpatial",  "Download all spatial data (.zip)"))
                                 ),
                                 
@@ -604,8 +638,7 @@ server <- function(input, output, session) {
               params = list(session_start, session_token)),
     error = function(e) message("Visit log failed: ", conditionMessage(e)))
   output$visit_count <- renderText({
-    n <- tryCatch(dbGetQuery(conn, "SELECT count(DISTINCT session_token)::int AS n FROM usage")$n,
-                  error = function(e) NA)
+    n <- get_visit_count()
     if (is.na(n)) "" else paste0(" · ", format(n, big.mark = ","), " visits since Dec 2023")
   })
   
@@ -620,8 +653,8 @@ server <- function(input, output, session) {
     initial_map %>%
       add_landslides() %>%
       addLayersControl(
-        baseGroups    = c("BC Basemap","WorldImagery","WorldTopoMap","Landsat 2000","Landsat 2021"),
-        overlayGroups = c("Landslides v14 (Brideau et al. 2026)"),
+        baseGroups    = BASE_GROUPS,
+        overlayGroups = REF_OVERLAYS,
         options = layersControlOptions(collapsed = TRUE)) %>%
       hideGroup("Landslides v14 (Brideau et al. 2026)") %>%
       fitBounds(-140, 48, -113, 60)
@@ -824,11 +857,7 @@ server <- function(input, output, session) {
         bbbb <- st_bbox(bas_4326)
         leafletProxy("mymap") %>% leaflet::clearGroup("Watershed")
         leafletProxy("mymap") %>%
-          leaflet::clearGroup("FWA Wetland") %>% leaflet::clearGroup("FWA Lake") %>%
-          leaflet::clearGroup("FWA Glacier") %>% leaflet::clearGroup("Glacier 1985") %>%
-          leaflet::clearGroup("Glacier 2021") %>% leaflet::clearGroup("Fire") %>%
-          leaflet::clearGroup("Cutblock") %>% leaflet::clearGroup("Roads") %>%
-          leaflet::clearGroup("Water Rights") %>% leaflet::clearGroup("Approvals") %>%
+          leaflet::clearGroup(RESULT_GROUPS) %>% removeControl("legend_points") %>% removeControl("legend_polygons") %>%
           addPolygons(data = bas_4326, weight = 2, fillOpacity = 0,
                       color = "blue", group = "Watershed") %>%
           fitBounds(bbbb$xmin[[1]], bbbb$ymin[[1]], bbbb$xmax[[1]], bbbb$ymax[[1]])
@@ -883,11 +912,7 @@ server <- function(input, output, session) {
         bbbb <- st_bbox(bas4326)
         leafletProxy("mymap") %>% leaflet::clearGroup("Watershed")
         leafletProxy("mymap") %>%
-          leaflet::clearGroup("FWA Wetland") %>% leaflet::clearGroup("FWA Lake") %>%
-          leaflet::clearGroup("FWA Glacier") %>% leaflet::clearGroup("Glacier 1985") %>%
-          leaflet::clearGroup("Glacier 2021") %>% leaflet::clearGroup("Fire") %>%
-          leaflet::clearGroup("Cutblock") %>% leaflet::clearGroup("Roads") %>%
-          leaflet::clearGroup("Water Rights") %>% leaflet::clearGroup("Approvals") %>%
+          leaflet::clearGroup(RESULT_GROUPS) %>% removeControl("legend_points") %>% removeControl("legend_polygons") %>%
           addPolygons(data = bas4326, fillOpacity = 0, weight = 2, color = "blue", group = "Watershed") %>%
           fitBounds(bbbb$xmin[[1]], bbbb$ymin[[1]], bbbb$xmax[[1]], bbbb$ymax[[1]])
         
@@ -1104,9 +1129,6 @@ server <- function(input, output, session) {
             incProgress(1, detail = "Estimating discharge...")
             new_ws2_forRF(pred_Q_prepWS(w = new_ws2, my_wetlands = my_wl, my_glaciers = my_gl, my_lakes = my_lk))
             ref_stn    <- pred_Q_findRef(w = new_ws2_forRF())
-            ref_stn_ws <- st_read(conn, query = paste0(
-              "SELECT stationnum,name,area,geometry FROM wsc_drainagebasin_clean_3005 WHERE stationnum = '",
-              ref_stn, "'")) %>% rename(geom = geometry)
             updateselection <- stn_training$total_name[str_detect(stn_training$total_name, ref_stn)]
             updateSelectInput(inputId = "plot_discharge_site_sel", selected = updateselection)
             
@@ -1127,13 +1149,10 @@ server <- function(input, output, session) {
               "ClimateBC v7.3 (Wang et al. 2016, <i>PLOS ONE</i>); Copernicus GLO-30 DEM."
             )})
             
-            # Discharge update on reference station override ─────────────────────────── ####
-            # Replace (not stack) the observer from any previous run, otherwise each station
-            # change re-runs the queries and plot once per earlier run
-            if (!is.null(discharge_obs)) discharge_obs$destroy()
-            discharge_obs <<- observeEvent(input$plot_discharge_site_sel, ignoreInit = TRUE, {
+            # Discharge plot + reference basin map for a given reference station ────────── ####
+            discharge_stn <- NULL
+            render_discharge <- function(my_force_station) {
               withProgress(message = "Updating reference station...", max = 2, {
-                my_force_station <- str_split_fixed(input$plot_discharge_site_sel, " - ", 3)[,1]
                 ref_stn_ws <- st_read(conn, query = paste0(
                   "SELECT stationnum,name,area,geometry FROM wsc_drainagebasin_clean_3005 WHERE stationnum = '",
                   my_force_station, "'")) %>% rename(geom = geometry)
@@ -1175,6 +1194,19 @@ server <- function(input, output, session) {
                 gg_plot_discharge2(gg_plot_discharge)
                 output$plot_discharge <- renderPlotly({ plotly::ggplotly(gg_plot_discharge, dynamicTicks=TRUE, width=800) })
               })
+              discharge_stn <<- my_force_station
+            }
+            
+            # Render directly: if the predicted station equals the dropdown's current value,
+            # updateSelectInput() doesn't fire the observer and the previous watershed's plot stayed
+            render_discharge(ref_stn)
+            
+            # Reference station override. Replace (not stack) the observer from any previous run;
+            # skip when the dropdown just echoes the station already rendered.
+            if (!is.null(discharge_obs)) discharge_obs$destroy()
+            discharge_obs <<- observeEvent(input$plot_discharge_site_sel, ignoreInit = TRUE, {
+              my_force_station <- str_split_fixed(input$plot_discharge_site_sel, " - ", 3)[,1]
+              if (!identical(my_force_station, discharge_stn)) render_discharge(my_force_station)
             })
             
           } 
@@ -1971,35 +2003,28 @@ server <- function(input, output, session) {
           incProgress(1, detail = "Update map")
           bbbb <- st_bbox(new_ws2 %>% st_transform(4326))
           
-          if (input$watershed_source == "Water Survey of Canada Basins") {
-            wsc_pp_ac <- wsc_pp %>% filter(status=="active")      %>% mutate(id=stationnum)
-            wsc_pp_dc <- wsc_pp %>% filter(status=="discontinued") %>% mutate(id=stationnum)
-            new_leaflet <- initial_map %>%
-              addPolygons(data=new_ws2%>%st_transform(4326), fillOpacity=0, weight=2, color="blue") %>%
-              addCircleMarkers(data=wsc_pp_ac, lng=wsc_pp_ac$lon, lat=wsc_pp_ac$lat, color="steelblue", radius=3, group="WSC Active",
-                               label=paste0(wsc_pp_ac$name," - ",wsc_pp_ac$stationnum," [active]")) %>%
-              addCircleMarkers(data=wsc_pp_dc, lng=wsc_pp_dc$lon, lat=wsc_pp_dc$lat, color="grey", radius=3, group="WSC Discontinued",
-                               label=paste0(wsc_pp_dc$name," - ",wsc_pp_dc$stationnum," [discontinued]")) %>%
-              addLayersControl(baseGroups=c("BC Basemap","WorldImagery","WorldTopoMap","Landsat 2000","Landsat 2021"),
-                               overlayGroups=c("WSC Active","WSC Discontinued"),
-                               options=layersControlOptions(collapsed=TRUE))
-          } else {
-            new_leaflet <- initial_map %>%
-              addPolygons(data=new_ws2%>%st_transform(4326), fillOpacity=0, weight=2, color="blue")
-          }
-          
+          # Update the existing map in place instead of re-rendering it: keeps the user's
+          # basemap / lidar / landslide state and avoids resending every base layer.
+          # (The watershed outline is already on the map from the selection step.)
+          map_proxy <- leafletProxy("mymap") %>%
+            clearGroup(RESULT_GROUPS) %>%
+            removeControl("legend_points") %>% removeControl("legend_polygons")
+
           if ("Forest Disturbance" %in% input$run_modules) {
-            new_leaflet <- new_leaflet %>%
-              addPolylines(data=dra%>%st_transform(4326), group="Roads", color="black", weight=1,
-                           label=dra$transport_line_surface_code_desc) %>%
-              addPolygons(data=my_wf%>%filter(clipped_area_m2>0)%>%st_transform(4326), group="Fire",
-                          fillColor="red", color="red", weight=2, fillOpacity=0.8, label=paste0("Fire year: ",my_wf$fire_year)) %>%
-              addPolygons(data=my_cb%>%filter(clipped_area_m2>0)%>%st_transform(4326), group="Cutblock",
-                          fillColor="darkgreen", color="darkgreen", weight=1, fillOpacity=0.8, label=paste0("Harvest year: ",my_cb$harvest_year))
+            dra_map <- map_simplify(dra)
+            wf_map  <- map_simplify(my_wf %>% filter(clipped_area_m2>0))
+            cb_map  <- map_simplify(my_cb %>% filter(clipped_area_m2>0))
+            map_proxy %>%
+              addPolylines(data=dra_map, group="Roads", color="black", weight=1,
+                           label=map_label(dra_map$transport_line_surface_code_desc)) %>%
+              addPolygons(data=wf_map, group="Fire",
+                          fillColor="red", color="red", weight=2, fillOpacity=0.8, label=map_label(if (nrow(wf_map)) paste0("Fire year: ",wf_map$fire_year))) %>%
+              addPolygons(data=cb_map, group="Cutblock",
+                          fillColor="darkgreen", color="darkgreen", weight=1, fillOpacity=0.8, label=map_label(if (nrow(cb_map)) paste0("Harvest year: ",cb_map$harvest_year)))
           }
-          
+
           if ("Water Allocations" %in% input$run_modules) {
-            new_leaflet <- new_leaflet %>%
+            map_proxy %>%
               addCircles(data=wrl, lng=wrl$lon, lat=wrl$lat, color="red", fillColor="red", group="Water Rights",
                          label=paste0(wrl$POD_STATUS," — ",wrl$PRIMARY_LICENSEE_NAME),
                          popup=~paste("<h3>Water Licence:</h3>",wrl$PRIMARY_LICENSEE_NAME,"<br>",
@@ -2011,49 +2036,47 @@ server <- function(input, output, session) {
                                       "<b>Works:</b>",wap$WORKS_DESCRIPTION,"<br>",
                                       "<b>Quantity:</b>",wap$QUANTITY,wap$QUANTITY_UNITS))
           }
-          
+
           if ("Streamflow and Freshwater" %in% input$run_modules) {
             random_hex_color <- function() paste0("#",paste(sample(c(0:9,letters[1:6]),6,replace=TRUE),collapse=""))
             sub_basins <- my_named[my_named$Location %in% c("Upstream","Watershed of Interest"),] %>%
               mutate(weight=1+(as.numeric(area_km2)/max(area_km2)*3)) %>%
               arrange(-area_km2) %>% rowwise() %>% mutate(random_color=random_hex_color())
             if (nrow(sub_basins) > 0) {                        # ← add this guard
-              
-              new_leaflet <- new_leaflet %>%
-                addPolygons(data=sub_basins%>%st_transform(4326), group="Sub-basins",
-                            label=sub_basins$gnis_name, fillOpacity=0.1,
-                            weight=sub_basins$weight, color=sub_basins$random_color) %>%
-                addPolygons(data=my_wl%>%filter(clipped_area_m2>0)%>%st_transform(4326), group="FWA Wetland",
-                            fillColor="yellow",color="pink",weight=1,fillOpacity=0.3,label=my_wl$waterbody_type) %>%
-                addPolygons(data=my_lk%>%filter(clipped_area_m2>0)%>%st_transform(4326), group="FWA Lake",
-                            fillColor="steelblue",color="steelblue",weight=1,fillOpacity=1,label=my_lk$waterbody_type) %>%
-                addPolygons(data=my_gl%>%filter(clipped_area_m2>0)%>%st_transform(4326), group="FWA Glacier",
-                            fillColor="grey",color="grey",weight=1,fillOpacity=0.3,label=my_gl$waterbody_type) %>%
-                addPolygons(data=my_gl_1985%>%filter(FEATURE_AREA_SQM>0)%>%st_transform(4326), group="Glacier 1985",
+              sub_map <- map_simplify(sub_basins)
+              wl_map  <- map_simplify(my_wl %>% filter(clipped_area_m2>0))
+              lk_map  <- map_simplify(my_lk %>% filter(clipped_area_m2>0))
+              gl_map  <- map_simplify(my_gl %>% filter(clipped_area_m2>0))
+              map_proxy %>%
+                addPolygons(data=sub_map, group="Sub-basins",
+                            label=map_label(sub_map$gnis_name), fillOpacity=0.1,
+                            weight=sub_map$weight, color=sub_map$random_color) %>%
+                addPolygons(data=wl_map, group="FWA Wetland",
+                            fillColor="yellow",color="pink",weight=1,fillOpacity=0.3,label=map_label(wl_map$waterbody_type)) %>%
+                addPolygons(data=lk_map, group="FWA Lake",
+                            fillColor="steelblue",color="steelblue",weight=1,fillOpacity=1,label=map_label(lk_map$waterbody_type)) %>%
+                addPolygons(data=gl_map, group="FWA Glacier",
+                            fillColor="grey",color="grey",weight=1,fillOpacity=0.3,label=map_label(gl_map$waterbody_type)) %>%
+                addPolygons(data=map_simplify(my_gl_1985 %>% filter(FEATURE_AREA_SQM>0)), group="Glacier 1985",
                             fillColor="brown",color="brown",weight=1,fillOpacity=0.3) %>%
-                addPolygons(data=my_gl_2021%>%filter(FEATURE_AREA_SQM>0)%>%st_transform(4326), group="Glacier 2021",
+                addPolygons(data=map_simplify(my_gl_2021 %>% filter(FEATURE_AREA_SQM>0)), group="Glacier 2021",
                             fillColor="blue",color="blue",weight=1,fillOpacity=0.3)
             }
           }
-          
-          output$mymap <- renderLeaflet({
-            new_leaflet %>%
-              add_landslides() %>%
-              addLayersControl(
-                baseGroups    = c("BC Basemap","WorldImagery","WorldTopoMap","Landsat 2000","Landsat 2021"),
-                overlayGroups = c("Landslides v14 (Brideau et al. 2026)","Sub-basins","WSC Active","WSC Discontinued",
-                                  "FWA Wetland","FWA Lake","FWA Glacier","Glacier 1985","Glacier 2021",
-                                  "Fire","Cutblock","Roads","Water Rights","Water Approvals"),
-                options = layersControlOptions(collapsed=TRUE)) %>%
-              hideGroup(c("Landslides v14 (Brideau et al. 2026)","Roads","Glacier 1985","Glacier 2021","WSC Active","WSC Discontinued")) %>%
-              fitBounds(bbbb$xmin[[1]], bbbb$ymin[[1]], bbbb$xmax[[1]], bbbb$ymax[[1]]) %>%
-              addLegend("bottomleft",  colors=c("blue","red"),
-                        labels=c("Water Approvals","Water Rights"), title="Points", opacity=1) %>%
-              addLegend("bottomright", colors=c("yellow","steelblue","grey","brown","blue","red","darkgreen"),
-                        labels=c("FWA Wetland","FWA Lake","FWA Glacier","Glacier 1985","Glacier 2021","Wildfire","Cutblock"),
-                        title="Polygons", opacity=1)
-          })
-          
+
+          map_proxy %>%
+            addLayersControl(
+              baseGroups    = BASE_GROUPS,
+              overlayGroups = c(REF_OVERLAYS, RESULT_GROUPS),
+              options = layersControlOptions(collapsed=TRUE)) %>%
+            hideGroup(c("Roads","Glacier 1985","Glacier 2021")) %>%
+            fitBounds(bbbb$xmin[[1]], bbbb$ymin[[1]], bbbb$xmax[[1]], bbbb$ymax[[1]]) %>%
+            addLegend("bottomleft",  colors=c("blue","red"), layerId="legend_points",
+                      labels=c("Water Approvals","Water Rights"), title="Points", opacity=1) %>%
+            addLegend("bottomright", colors=c("yellow","steelblue","grey","brown","blue","red","darkgreen"), layerId="legend_polygons",
+                      labels=c("FWA Wetland","FWA Lake","FWA Glacier","Glacier 1985","Glacier 2021","Wildfire","Cutblock"),
+                      title="Polygons", opacity=1)
+
           # MAP FOR REPORT 
           
           # ── Static ggplot map for PDF export (never rendered in UI) ──────────────────
