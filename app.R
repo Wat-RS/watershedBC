@@ -10,6 +10,28 @@ source("functions_app/app_7_tooltips.R")
 source("functions_app/app_8_report.R")
 source("functions_monitoring/usage.R")
 
+# Remote (S3 /vsicurl) raster reads: don't let GDAL list the bucket "directory" on every open,
+# and cache fetched byte ranges within the process
+terra::setGDALconfig("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
+terra::setGDALconfig("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.vrt")
+terra::setGDALconfig("VSI_CACHE", "TRUE")
+terra::setGDALconfig("AWS_NO_SIGN_REQUEST", "YES")
+terra::setGDALconfig("AWS_DEFAULT_REGION", "ca-central-1")
+
+# Snow probability VRT over 73 remote day-of-year COGs. Building it opens every file header,
+# so it's built once per R process (on first use) and reused by every run.
+snow_days <- str_pad(seq(1, 365, 5), 3, "left", 0)
+snow_vrt_file <- NULL
+get_snow_vrt <- function() {
+  if (is.null(snow_vrt_file) || !file.exists(snow_vrt_file)) {
+    f <- tempfile(fileext = ".vrt")
+    terra::vrt(paste0("/vsicurl/https://bcbasin.s3.ca-central-1.amazonaws.com/snow_prob_bc/cal_doy_", snow_days, ".tif"),
+               f, options = "-separate")
+    snow_vrt_file <<- f
+  }
+  snow_vrt_file
+}
+
 onStop(function() {
   cat("Closing Database Connections")
   pool::poolClose(conn)
@@ -44,17 +66,35 @@ ls_tally_data <- list(
   lng    = unname(ls_xy[,1]), lat = unname(ls_xy[,2]), type = ls_pts$Type,
   levels = ls_levels,         colors = unname(ls_pal(ls_levels)))
 
-# Helper: add landslide GL points + in-view tally to any leaflet map
+# The ~31k landslide points (~5 MB) are only sent to the browser the first time the layer
+# is switched on (the layer is hidden by default). The map JS asks for them via input$ls_load.
+LS_GROUP <- "Landslides v14 (Brideau et al. 2026)"
+
+add_landslide_points <- function(map) {
+  leafgl::addGlPoints(map,
+    data = ls_pts, group = LS_GROUP,
+    fillColor = ls_pal(ls_pts$Type), radius = 10, fillOpacity = 0.8,
+    popup = ls_pts$lab)
+}
+
+# Helper: landslide in-view tally + lazy-load hook + collapsible legends for any leaflet map
 add_landslides <- function(map) {
   map |>
-    leafgl::addGlPoints(
-      data = ls_pts, group = "Landslides v14 (Brideau et al. 2026)",
-      fillColor = ls_pal(ls_pts$Type), radius = 10, fillOpacity = 0.8,
-      label = ls_pts$lab, popup = ls_pts$lab) |>
     htmlwidgets::onRender("
-      function(el, x, data) {
-        var map = this, colMap = {};
-        for (var i = 0; i < data.levels.length; i++) colMap[data.levels[i]] = data.colors[i];
+      function(el, x) {
+        var map = this, data = null, colMap = {}, requested = false;
+        var LS_GROUP = 'Landslides v14 (Brideau et al. 2026)';
+
+        // Tally data arrives with the points (session$sendCustomMessage('ls_tally', ...))
+        window._lsOnData = function(d) {
+          data = d; colMap = {};
+          for (var i = 0; i < data.levels.length; i++) colMap[data.levels[i]] = data.colors[i];
+          run();
+        };
+        if (!window._lsHandler && window.Shiny) {
+          window._lsHandler = true;
+          Shiny.addCustomMessageHandler('ls_tally', function(d) { if (window._lsOnData) window._lsOnData(d); });
+        }
 
         // ---- Landslide tally control (collapsible) ----
         var ctl = L.control({position: 'topright'});
@@ -85,6 +125,7 @@ add_landslides <- function(map) {
         ctl.addTo(map);
 
         function update() {
+          if (!data) { ctl._title.textContent = 'Loading landslides...'; ctl._body.innerHTML = ''; return; }
           var b = map.getBounds(), counts = {}, total = 0;
           for (var i = 0; i < data.lat.length; i++) {
             if (b.contains([data.lat[i], data.lng[i]])) {
@@ -105,6 +146,14 @@ add_landslides <- function(map) {
         }
         var run = update.bind(ctl);
         map.on('moveend', run); run();
+
+        // ---- Request the points from the server the first time the layer is switched on ----
+        map.on('overlayadd', function(e){
+          if (e.name === LS_GROUP && !requested && window.Shiny) {
+            requested = true;
+            Shiny.setInputValue('ls_load', Date.now(), {priority: 'event'});
+          }
+        });
 
         // ---- Tie tally visibility to the Landslides layer toggle (off by default) ----
         var tallyEl = ctl.getContainer();
@@ -143,7 +192,7 @@ add_landslides <- function(map) {
         map.on('overlayadd', makeLegendsCollapsible);
         map.on('overlayremove', makeLegendsCollapsible);
       }
-    ", data = ls_tally_data)
+    ")
 }
 
 # UI ###########################################################################
@@ -565,6 +614,7 @@ server <- function(input, output, session) {
   new_ws2_forRF    <- reactiveVal()
   gg_plot_discharge2 <- reactiveVal()
   pending_click    <- reactiveVal(NULL)   # stores lat/lng awaiting confirmation
+  discharge_obs    <- NULL                # reference-station observer, recreated each run
   
   output$mymap <- renderLeaflet({
     initial_map %>%
@@ -576,7 +626,13 @@ server <- function(input, output, session) {
       hideGroup("Landslides v14 (Brideau et al. 2026)") %>%
       fitBounds(-140, 48, -113, 60)
   })
-  
+
+  # Landslide points are sent only when the layer is first switched on (per map render)
+  observeEvent(input$ls_load, {
+    leafletProxy("mymap") %>% add_landslide_points()
+    session$sendCustomMessage("ls_tally", ls_tally_data)
+  })
+
   # 2. MAP CLICK → CONFIRMATION MODAL ─────────────────────────────────────────── ####
   #    Replaces the old "Watershed Delineation on Map Click" checkbox.
   #    A click on the map stores the coordinates and shows a modal asking the
@@ -1072,7 +1128,10 @@ server <- function(input, output, session) {
             )})
             
             # Discharge update on reference station override ─────────────────────────── ####
-            observeEvent(input$plot_discharge_site_sel, ignoreInit = TRUE, {
+            # Replace (not stack) the observer from any previous run, otherwise each station
+            # change re-runs the queries and plot once per earlier run
+            if (!is.null(discharge_obs)) discharge_obs$destroy()
+            discharge_obs <<- observeEvent(input$plot_discharge_site_sel, ignoreInit = TRUE, {
               withProgress(message = "Updating reference station...", max = 2, {
                 my_force_station <- str_split_fixed(input$plot_discharge_site_sel, " - ", 3)[,1]
                 ref_stn_ws <- st_read(conn, query = paste0(
@@ -1228,15 +1287,19 @@ server <- function(input, output, session) {
               mutate(ws_area = as.numeric(st_area(new_ws2[1,])) / 1e6,
                      eca = 100)
             
-            e <- do.call(bind_rows, lapply(1:nrow(eca), function(i=1) {
-              p     <- eca[i,]
-              slope <- 100 / 60
-              years <- (p$year + 1):(lubridate::year(lubridate::now()))
-              bind_rows(p, data.frame(year=years) %>%
-                          mutate(type=p$type, eca=p$eca-((year-p$year)*slope),
-                                 area=p$clipped_area_m2/1e6, ws_area=p$ws_area)) %>%
-                mutate(eca=case_when(eca<0~0, TRUE~eca))
-            }))
+            # One recovery row per polygon per year since disturbance (vectorised; same rows as
+            # binding a data frame per polygon)
+            slope   <- 100 / 60
+            eca_yrs <- Map(`:`, eca$year + 1, lubridate::year(lubridate::now()))
+            idx     <- rep(seq_len(nrow(eca)), lengths(eca_yrs))
+            yrs     <- unlist(eca_yrs)
+            e <- bind_rows(
+              eca,
+              tibble(year    = yrs,
+                     type    = eca$type[idx],
+                     area    = eca$clipped_area_m2[idx] / 1e6,
+                     ws_area = eca$ws_area[idx],
+                     eca     = pmax(eca$eca[idx] - (yrs - eca$year[idx]) * slope, 0)))  # last: tibble() would mask `eca`
             
             gg_eca <- e %>%
               mutate(eca_area=(eca/100)*area, eca_area_ws_perc=100*(eca_area/ws_area)) %>%
@@ -1638,14 +1701,11 @@ server <- function(input, output, session) {
                 group_by(TYPE=POD_SUBTYPE, STATUS=LICENCE_STATUS) %>%
                 summarise(SUM=sum(total_vol_year,na.rm=TRUE),.groups="drop"))
             
-            output$plot_auth <- renderPlotly({
-              ggplotly(
-                water_auth %>% ggplot() +
-                  geom_col(aes(TYPE, SUM)) + theme_bw() +
-                  scale_y_continuous(labels=function(x) format(x,big.mark=",",scientific=FALSE)) +
-                  labs(y="Annualised volume (m³/yr)", x="", title="Water allocations by type"),
-                dynamicTicks=TRUE, width=800)
-            })
+            gg_water_auth <- water_auth %>% ggplot() +
+              geom_col(aes(TYPE, SUM)) + theme_bw() +
+              scale_y_continuous(labels=function(x) format(x,big.mark=",",scientific=FALSE)) +
+              labs(y="Annualised volume (m³/yr)", x="", title="Water allocations by type")
+            output$plot_auth <- renderPlotly({ ggplotly(gg_water_auth, dynamicTicks=TRUE, width=800) })
             output$text_plot_auth <- renderUI({ caption(
               "<b>Water allocations</b> — total annualised volume of water allocated within the watershed, ",
               "shown by licence/approval type. Two datasets are combined:<br>",
@@ -1759,27 +1819,15 @@ server <- function(input, output, session) {
             showTab(inputId = "module_tabs", target = "Snow Remote Sensing")
             incProgress(1, detail = "Mapping snow probability...")
             
-            new_ws2_wkt  <- st_as_text(st_geometry(new_ws2 %>% ms_explode()))
-            new_ws2_4326 <- new_ws2 %>% st_transform(4326)
-            
-            if (!exists("dem"))
-              dem <- terra::rast("/vsicurl/https://bcbasin.s3.ca-central-1.amazonaws.com/COP_GLO30_FOR_watershedBC_cog.tif",
-                                 win = terra::ext(new_ws2_4326))
-            
-            snow_days <- str_pad(seq(1, 365, 5), 3, "left", 0)
-            terra::setGDALconfig("AWS_NO_SIGN_REQUEST",  "YES")
-            terra::setGDALconfig("AWS_DEFAULT_REGION", "ca-central-1")
-            vrt_s3 <- tempfile(fileext = ".vrt")
-            terra::vrt(paste0("/vsicurl/https://bcbasin.s3.ca-central-1.amazonaws.com/snow_prob_bc/cal_doy_", snow_days, ".tif"),
-                       vrt_s3, options = "-separate")
-            snow <- rast(vrt_s3, win = terra::ext(new_ws2_4326))
+            snow <- rast(get_snow_vrt(), win = terra::ext(new_ws2_4326))
             names(snow) <- snow_days
-            
-            dem  <- project(dem, snow, method="bilinear")
-            dem  <- terra::mask(dem,  vect(new_ws2_4326))
-            snow <- terra::mask(snow, vect(new_ws2_4326))
-            
-            elev_vals <- values(dem, mat=FALSE)
+
+            # Separate object so the 30 m `dem` (used by the DEM download) isn't replaced by the snow grid
+            snow_dem <- project(dem, snow, method="bilinear")
+            snow_dem <- terra::mask(snow_dem, vect(new_ws2_4326))
+            snow     <- terra::mask(snow, vect(new_ws2_4326))
+
+            elev_vals <- values(snow_dem, mat=FALSE)
             breaks    <- seq(0, 10, by=1)
             labels    <- paste0(head(breaks*10,-1), "-", tail(breaks*10,-1), "%")
             
@@ -1795,7 +1843,7 @@ server <- function(input, output, session) {
             }, .progress=TRUE)
             
             results <- results %>% mutate(prob_bin=factor(prob_bin, levels=labels))
-            d <- as.data.frame(dem$COP_GLO30_FOR_watershedBC_cog)$COP_GLO30_FOR_watershedBC_cog
+            d <- as.data.frame(snow_dem$COP_GLO30_FOR_watershedBC_cog)$COP_GLO30_FOR_watershedBC_cog
             
             p_snow_elev <- results %>%
               mutate(prob_bin=ifelse(prob_bin %in% c("50-60%","60-70%","70-80%","80-90%","90-100%"),
@@ -2277,7 +2325,8 @@ server <- function(input, output, session) {
                 gg_profile = mod("Stream Profile", gg_profile),
                 
                 # ── Water Allocations ──────────────────────────────────────────────────
-                water_auth = mod("Water Allocations", water_auth),
+                water_auth    = mod("Water Allocations", water_auth),
+                gg_water_auth = mod("Water Allocations", gg_water_auth),
                 
                 # ── ClimateBC ──────────────────────────────────────────────────────────
                 gg_mat      = mod("ClimateBC", gg_mat),
@@ -2300,9 +2349,7 @@ server <- function(input, output, session) {
                 r1985 = mod("Satellite Imagery", r1985),
                 r2020 = mod("Satellite Imagery", r2020),
                 r2023 = mod("Satellite Imagery", r2023)
-              ))
-              
-              file.copy(pdf_path, file)
+              ), pdf_path = file)
             }
           )
           

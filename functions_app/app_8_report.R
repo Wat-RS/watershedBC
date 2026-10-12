@@ -1,8 +1,6 @@
-tempdir_path <- tempdir()
-time         <- format(Sys.time(), "%Y%m%d_%H%M%S")
-pdf_path     <- paste0(tempdir_path, "/", time, "_report.pdf")
-
-render_report <- function(my_params) {
+# Writes straight to the download handler's file (a shared global path let concurrent
+# sessions overwrite each other's report)
+render_report <- function(my_params, pdf_path) {
   withProgress(message = "Preparing PDF report...", max = 3, {
     incProgress(1, detail = "Building PDF...")
     
