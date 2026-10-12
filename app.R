@@ -442,54 +442,60 @@ ui <-
                                                           # ── Streamflow & Freshwater ──────────────────────────────────────####
                                                           tabPanel("Streamflow & Freshwater",
                                                                    br(),
-                                                                   plotlyOutput("plot_discharge"),
+                                                                   htmlOutput("warn_discharge_ref"),
+                                                                   radioButtons("discharge_step", NULL, choices = c("Daily", "Weekly", "Monthly"),
+                                                                                inline = TRUE),
+                                                                   plotlyOutput("plot_discharge") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_discharge"),
                                                                    br(),
                                                                    shiny::selectInput(inputId = "plot_discharge_site_sel",
-                                                                                      label   = "Override WSC reference station for streamflow estimation",
-                                                                                      choices = stn_training$total_name, width = "600px"),
-                                                                   leafletOutput("map_discharge_ref", height = "400px", width = "600px"),
+                                                                                      label   = "WSC reference station (ranked by model match score)",
+                                                                                      choices = setNames(stn_training$station_number, stn_training$total_name),
+                                                                                      width = "600px"),
+                                                                   htmlOutput("text_discharge_ref"),
+                                                                   div(class = "table-scroll", tableOutput("table_discharge_ref")),
+                                                                   leafletOutput("map_discharge_ref", height = "400px", width = "600px") %>% withSpinner(color = "steelblue"),
                                                                    br(),
                                                                    div(class = "table-scroll", tableOutput("table_named")),
                                                                    htmlOutput("text_table_named"),
                                                                    br(),
-                                                                   plotlyOutput("plot_hypsometry"),
+                                                                   plotlyOutput("plot_hypsometry") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_hypsometry"),
                                                                    br(),
-                                                                   plotlyOutput("plot_fwa"),
+                                                                   plotlyOutput("plot_fwa") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_fwa"),
                                                                    br(), br()
                                                           ),
                                                           # ── Water Allocations ────────────────────────────────────────────####
                                                           tabPanel("Water Allocations",
                                                                    br(),
-                                                                   plotlyOutput("plot_auth"),
+                                                                   plotlyOutput("plot_auth") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_auth"),
                                                                    br(), br()
                                                           ),
                                                           # ── Stream Profile ───────────────────────────────────────────────####
                                                           tabPanel("Stream Profile",
                                                                    br(),
-                                                                   plotlyOutput("plot_profile"),
+                                                                   plotlyOutput("plot_profile") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_profile"),
                                                                    br(), br()
                                                           ),
                                                           # ── Forest Disturbance ───────────────────────────────────────────####
                                                           tabPanel("Forest Disturbance",
                                                                    br(),
-                                                                   plotlyOutput("plot_timeseries"),
+                                                                   plotlyOutput("plot_timeseries") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_timeseries"),
                                                                    br(),
-                                                                   plotlyOutput("plot_timeseries_cumsum"),
+                                                                   plotlyOutput("plot_timeseries_cumsum") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_timeseries_cumsum"),
                                                                    br(),
-                                                                   plotlyOutput("plot_eca"),
+                                                                   plotlyOutput("plot_eca") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_eca"),
                                                                    br(),
-                                                                   plotlyOutput("plot_elevbins"),
+                                                                   plotlyOutput("plot_elevbins") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_elevbins"),
                                                                    br(),
-                                                                   plotlyOutput("plot_dra"),
+                                                                   plotlyOutput("plot_dra") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_dra"),
                                                                    br(), br()
                                                           ),
@@ -497,8 +503,8 @@ ui <-
                                                           # ── CEF Human Disturbance ────────────────────────────────────────####
                                                           tabPanel("CEF Human Disturbance",
                                                                    br(),
-                                                                   plotlyOutput("plot_cef_group"),
-                                                                   plotlyOutput("plot_cef_group_flag"),
+                                                                   plotlyOutput("plot_cef_group") %>% withSpinner(color = "steelblue"),
+                                                                   plotlyOutput("plot_cef_group_flag") %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_cef_group_flag"),
                                                                    br(), br()
                                                           ),
@@ -506,20 +512,20 @@ ui <-
                                                           # ── ClimateBC ────────────────────────────────────────────────────####
                                                           tabPanel("ClimateBC",
                                                                    br(),
-                                                                   plotlyOutput("plot_mat"), htmlOutput("text_plot_mat"), br(),
-                                                                   plotlyOutput("plot_map"), htmlOutput("text_plot_map"), br(),
-                                                                   plotlyOutput("plot_pas"), htmlOutput("text_plot_pas"), br(),
-                                                                   plotlyOutput("plot_cmd"), htmlOutput("text_plot_cmd"),
+                                                                   plotlyOutput("plot_mat") %>% withSpinner(color = "steelblue"), htmlOutput("text_plot_mat"), br(),
+                                                                   plotlyOutput("plot_map") %>% withSpinner(color = "steelblue"), htmlOutput("text_plot_map"), br(),
+                                                                   plotlyOutput("plot_pas") %>% withSpinner(color = "steelblue"), htmlOutput("text_plot_pas"), br(),
+                                                                   plotlyOutput("plot_cmd") %>% withSpinner(color = "steelblue"), htmlOutput("text_plot_cmd"),
                                                                    br(), br()
                                                           ),
                                                           
                                                           # ── Snow Remote Sensing ──────────────────────────────────────────####
                                                           tabPanel("Snow Remote Sensing",
                                                                    br(),
-                                                                   plotlyOutput("plot_snowrs_plot", width = 800, height = 600),
+                                                                   plotlyOutput("plot_snowrs_plot", width = 800, height = 600) %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_snowrs_elev"),
                                                                    br(),
-                                                                   plotOutput("plot_snowrs_map",  width = 800, height = 600),
+                                                                   plotOutput("plot_snowrs_map",  width = 800, height = 600) %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_snowrs_map"),
                                                                    br(), br()
                                                           ),
@@ -527,15 +533,15 @@ ui <-
                                                           # ── Landslide Zonation ─────────────────────────────────────────── ####
                                                           tabPanel("Landslide Zonation",
                                                                    br(),
-                                                                   fluidRow(plotOutput("plot_rlf_map",  width = 800, height = 400),
-                                                                            plotOutput("plot_rlf_mapz", width = 800, height = 400)),
+                                                                   fluidRow(plotOutput("plot_rlf_map",  width = 800, height = 400) %>% withSpinner(color = "steelblue"),
+                                                                            plotOutput("plot_rlf_mapz", width = 800, height = 400) %>% withSpinner(color = "steelblue")),
                                                                    htmlOutput("text_plot_rlf_map"),
                                                                    br(),
-                                                                   fluidRow(plotOutput("plot_rlf_slp",  width = 800, height = 400),
-                                                                            plotOutput("plot_rlf_slpz", width = 800, height = 400)),
+                                                                   fluidRow(plotOutput("plot_rlf_slp",  width = 800, height = 400) %>% withSpinner(color = "steelblue"),
+                                                                            plotOutput("plot_rlf_slpz", width = 800, height = 400) %>% withSpinner(color = "steelblue")),
                                                                    htmlOutput("text_plot_rlf_slp"),
                                                                    br(),
-                                                                   plotOutput("plot_rlf_ls",   width = 800, height = 400),
+                                                                   plotOutput("plot_rlf_ls",   width = 800, height = 400) %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_rlf"),
                                                                    br(), br()
                                                           ),
@@ -543,13 +549,13 @@ ui <-
                                                           # ── Satellite Imagery ──────────────────────────────────────────── ####
                                                           tabPanel("Satellite Imagery",
                                                                    br(),
-                                                                   plotOutput("plot_landsat_1985",  width = 800, height = 800),
+                                                                   plotOutput("plot_landsat_1985",  width = 800, height = 800) %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_landsat_1985"),
                                                                    br(),
-                                                                   plotOutput("plot_landsat_2020",  width = 800, height = 800),
+                                                                   plotOutput("plot_landsat_2020",  width = 800, height = 800) %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_landsat_2020"),
                                                                    br(),
-                                                                   plotOutput("plot_sentinel_2023", width = 800, height = 800),
+                                                                   plotOutput("plot_sentinel_2023", width = 800, height = 800) %>% withSpinner(color = "steelblue"),
                                                                    htmlOutput("text_plot_sentinel_2023"),
                                                                    br(), br()
                                                           )
@@ -562,10 +568,10 @@ ui <-
                      tabPanel(title = "Usage",
                               shiny::fluidRow(
                                 shiny::column(width = 12,
-                                              plotOutput("usage_visits", width = 800, height = 400),
-                                              plotOutput("usage_recent", width = 800, height = 800),
-                                              plotOutput("usage_top",    width = 800, height = 800),
-                                              plotOutput("usage_total",  width = 800, height = 800)))),
+                                              plotOutput("usage_visits", width = 800, height = 400) %>% withSpinner(color = "steelblue"),
+                                              plotOutput("usage_recent", width = 800, height = 800) %>% withSpinner(color = "steelblue"),
+                                              plotOutput("usage_top",    width = 800, height = 800) %>% withSpinner(color = "steelblue"),
+                                              plotOutput("usage_total",  width = 800, height = 800) %>% withSpinner(color = "steelblue")))),
                      
                      navbarMenu("Other experimental apps",
                                 HTML("<a href='http://bcgov-env.shinyapps.io/nbchydro/' target='_blank'>Northern BC Hydrology Research</a>"),
@@ -1128,9 +1134,9 @@ server <- function(input, output, session) {
             # DISCHARGE ──────────────────────────────────────────────────────────────── ####
             incProgress(1, detail = "Estimating discharge...")
             new_ws2_forRF(pred_Q_prepWS(w = new_ws2, my_wetlands = my_wl, my_glaciers = my_gl, my_lakes = my_lk))
-            ref_stn    <- pred_Q_findRef(w = new_ws2_forRF())
-            updateselection <- stn_training$total_name[str_detect(stn_training$total_name, ref_stn)]
-            updateSelectInput(inputId = "plot_discharge_site_sel", selected = updateselection)
+            ref_rank <- pred_Q_rankRef(w = new_ws2_forRF())
+            ref_stn  <- ref_rank$station_number[1]
+            updateSelectInput(inputId = "plot_discharge_site_sel", choices = ref_choices(ref_rank), selected = ref_stn)
             
             output$text_plot_discharge <- renderUI({ caption(
               "<b>Estimated discharge</b> — daily mean discharge estimates generated by ",
@@ -1142,9 +1148,10 @@ server <- function(input, output, session) {
               "a simple area–precipitation index ratio (Morin 2002; Oudin et al. 2010).<br>",
               "<b>⚠ This model is a prototype and has NOT been validated.</b> Estimates may be unreliable.",
               "Do not use for regulatory, engineering, or water management decisions.<br>",
-              "<b>Reference gauge:</b> The automatically selected reference station can be overridden using ",
-              "the dropdown above. The reference basin map shows the geographic overlap between the ",
-              "watershed of interest (black) and the reference gauge basin (green).<br>",
+              "<b>Reference gauge:</b> The dropdown below lists candidate stations ranked by the model, with a ",
+              "match (100% = as similar as the station's own basin); the top-ranked station is used unless you ",
+              "choose another. The map shows the watershed ",
+              "of interest (black), the reference gauge basin (green) and the top five candidate gauges.<br>",
               "<b>Sources:</b> WSC HYDAT database (Environment and Climate Change Canada); ",
               "ClimateBC v7.3 (Wang et al. 2016, <i>PLOS ONE</i>); Copernicus GLO-30 DEM."
             )})
@@ -1158,6 +1165,15 @@ server <- function(input, output, session) {
                   my_force_station, "'")) %>% rename(geom = geometry)
                 bbbbb <- st_bbox(bind_rows(ref_stn_ws %>% st_transform(4326), new_ws() %>% st_transform(4326)))
                 
+                ref_lbl  <- paste0("Reference basin: ", my_force_station)
+                ref_pt   <- stn_training %>% filter(station_number == my_force_station) %>% slice(1)
+                cand_pts <- ref_rank %>% filter(rank <= 5, station_number != my_force_station, !is.na(lon))
+                ref_q    <- ref_quality(ref_rank, new_ws2_forRF(), my_force_station)
+                output$warn_discharge_ref  <- renderUI(ref_warning_html(ref_q, my_force_station))
+                output$text_discharge_ref  <- renderUI(ref_explain_html(ref_rank, new_ws2_forRF(), my_force_station))
+                output$table_discharge_ref <- renderTable(ref_compare_table(ref_rank, new_ws2_forRF(), my_force_station),
+                                                          align = "l", spacing = "xs", na = "")
+                
                 output$map_discharge_ref <- renderLeaflet({
                   wsc_pp_ac <- wsc_pp %>% filter(status == "active")      %>% mutate(id = stationnum)
                   wsc_pp_dc <- wsc_pp %>% filter(status == "discontinued") %>% mutate(id = stationnum)
@@ -1166,33 +1182,52 @@ server <- function(input, output, session) {
                                 layers = "GRB_BSK", options = WMSTileOptions(format="image/png", transparent=TRUE)) %>%
                     addMeasure(primaryLengthUnit="kilometers", secondaryLengthUnit="meters",
                                primaryAreaUnit="hectares", secondaryAreaUnit="sqmeters", position="topleft") %>%
-                    addPolygons(data = new_ws() %>% st_transform(4326), opacity=1, fillOpacity=0, weight=2,
-                                color="black", label="Watershed of Interest") %>%
-                    addPolygons(data = ref_stn_ws %>% st_transform(4326), opacity=1, fillOpacity=0.2,
-                                fillColor="green", weight=2, color="green",
-                                label=paste0("WSC Reference: ", my_force_station)) %>%
                     addCircleMarkers(data=wsc_pp_ac, lng=wsc_pp_ac$lon, lat=wsc_pp_ac$lat,
                                      color="steelblue", radius=1, group="WSC Active",
                                      label=paste0(wsc_pp_ac$name," - ",wsc_pp_ac$stationnum," [active]")) %>%
                     addCircleMarkers(data=wsc_pp_dc, lng=wsc_pp_dc$lon, lat=wsc_pp_dc$lat,
                                      color="grey", radius=1, group="WSC Discontinued",
                                      label=paste0(wsc_pp_dc$name," - ",wsc_pp_dc$stationnum," [discontinued]")) %>%
+                    addPolygons(data = ref_stn_ws %>% st_transform(4326), opacity=1, fillOpacity=0.2,
+                                fillColor="green", weight=2, color="green", group=ref_lbl,
+                                label=paste0("Reference basin: ", my_force_station, " - ", ref_pt$name)) %>%
+                    addPolygons(data = new_ws() %>% st_transform(4326), opacity=1, fillOpacity=0, weight=2,
+                                color="black", group="Watershed of Interest", label="Watershed of Interest") %>%
+                    addCircleMarkers(lng=cand_pts$lon, lat=cand_pts$lat, radius=6, weight=2, color="darkorange",
+                                     fillOpacity=0.8, group="Other top-5 candidates",
+                                     label=paste0("#", cand_pts$rank, " ", cand_pts$station_number, " - ", cand_pts$name,
+                                                  " (match ", fmt_score(cand_pts$match), ")")) %>%
+                    addCircleMarkers(lng=ref_pt$lon, lat=ref_pt$lat, radius=7, weight=2, color="darkgreen",
+                                     fillColor="green", fillOpacity=1, group=ref_lbl,
+                                     label=paste0("Reference gauge: ", my_force_station, " - ", ref_pt$name)) %>%
                     fitBounds(bbbbb$xmin[[1]], bbbbb$ymin[[1]], bbbbb$xmax[[1]], bbbbb$ymax[[1]]) %>%
-                    addLayersControl(baseGroups = "BC Basemap",
-                                     overlayGroups = c("WSC Active","WSC Discontinued",
-                                                       "Watershed of Interest", paste0("WSC Reference: ",my_force_station)),
+                    addLegend(position = "bottomright", opacity = 1,
+                              colors = c("black", "green", "darkorange", "steelblue", "grey"),
+                              labels = c("Watershed of interest", "Reference basin + gauge",
+                                         "Other top-5 candidates", "WSC active", "WSC discontinued")) %>%
+                    addLayersControl(overlayGroups = c("Watershed of Interest", ref_lbl, "Other top-5 candidates",
+                                                       "WSC Active", "WSC Discontinued"),
                                      options = layersControlOptions(collapsed=TRUE)) %>%
                     addMouseCoordinates()
                 })
                 
-                if (input$watershed_source == "Water Survey of Canada Basins") {
-                  gg_plot_discharge <- pred_Q_rf(w = new_ws2_forRF(), force_station = my_force_station,
-                                                 wsc_STATION_NUMBER = new_ws()$gnis_id)
-                } else {
-                  gg_plot_discharge <- pred_Q_rf(w = new_ws2_forRF(), force_station = my_force_station)
+                w_rf    <- new_ws2_forRF()
+                wsc_obs <- if (input$watershed_source == "Water Survey of Canada Basins") new_ws()$gnis_id
+                make_discharge_plot <- function(step) {
+                  gg <- pred_Q_rf(w = w_rf, force_station = my_force_station, wsc_STATION_NUMBER = wsc_obs, step = step)
+                  # PDF copy carries the match warning (the app shows it as a banner above the plot)
+                  gg_plot_discharge2(if (ref_q$level == "good") gg else
+                    gg + labs(subtitle = str_wrap(paste0(
+                      if (ref_q$level == "poor") "WARNING: poor reference station match - " else "Caution: weak reference station match - ",
+                      paste(ref_q$issues, collapse = "; ")), 100)))
+                  gg
                 }
-                gg_plot_discharge2(gg_plot_discharge)
-                output$plot_discharge <- renderPlotly({ plotly::ggplotly(gg_plot_discharge, dynamicTicks=TRUE, width=800) })
+                # Fill the PDF copy now, in case the plot is never viewed (hidden outputs don't render)
+                make_discharge_plot(isolate(input$discharge_step))
+                # Re-renders when the Daily / Weekly / Monthly toggle changes
+                output$plot_discharge <- renderPlotly({
+                  plotly::ggplotly(make_discharge_plot(input$discharge_step), dynamicTicks=TRUE, width=800)
+                })
               })
               discharge_stn <<- my_force_station
             }
@@ -1205,7 +1240,7 @@ server <- function(input, output, session) {
             # skip when the dropdown just echoes the station already rendered.
             if (!is.null(discharge_obs)) discharge_obs$destroy()
             discharge_obs <<- observeEvent(input$plot_discharge_site_sel, ignoreInit = TRUE, {
-              my_force_station <- str_split_fixed(input$plot_discharge_site_sel, " - ", 3)[,1]
+              my_force_station <- input$plot_discharge_site_sel
               if (!identical(my_force_station, discharge_stn)) render_discharge(my_force_station)
             })
             
@@ -1538,8 +1573,10 @@ server <- function(input, output, session) {
                 labs(x="Distance from outlet (km)", y="Elevation (m a.s.l.)",
                      color="Stream", title="Longitudinal stream profile")
               output$plot_profile <- renderPlotly({ ggplotly(gg_profile, dynamicTicks=TRUE, width=800) })
-              
-              
+
+
+            } else {
+              output$plot_profile <- renderPlotly({ req(FALSE) })   # no streams: blank, stops the spinner
             }
             
             output$text_plot_profile <- renderUI({ caption(

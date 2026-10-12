@@ -16,31 +16,27 @@ wsc_pp <- st_read(conn, query = q, quiet = TRUE)
 wsc_pp <- wsc_pp %>%
   mutate(lon = st_coordinates(.)[, 1], lat = st_coordinates(.)[, 2])
 
-# WSC TRAINING STATION IDS ####
+# WSC TRAINING STATIONS ####
+# One row per reference station in each station-matching model, with the same
+# descriptors the model uses, so candidates can be ranked and compared.
 
-stn_name_reg <-
-  dbGetQuery(conn,
-             "SELECT station_number FROM wsc_monthly_with_attri_dams_reg_20240204") %>%
-  mutate(regulated = "Regulated Flow")
-stn_name_nat <-
-  dbGetQuery(conn,
-             "SELECT station_number FROM wsc_monthly_with_attri_dams_nat_20240204") %>%
-  mutate(regulated = "Natural Flow")
-
+stn_attr_cols <- "station_number, station_cluster, area_km2, wetland_sum_perc, lake_sum_perc,
+                  glacier_sum_perc, mat, map, dem_p025, dem_p050, dem_p075"
 stn_training <- bind_rows(
-  stn_name_reg %>%
-    left_join(
-      wsc_pp %>% rename(station_number = stationnum) %>% select(station_number, name),
-      by = "station_number"
-    ) %>%
-    mutate(total_name = paste0(station_number, " - ", name, " - ", regulated)),
-  stn_name_nat %>%
-    left_join(
-      wsc_pp %>% rename(station_number = stationnum) %>% select(station_number, name),
-      by = "station_number"
-    ) %>%
-    mutate(total_name = paste0(station_number, " - ", name, " - ", regulated))
-)
+  dbGetQuery(conn, paste("SELECT", stn_attr_cols, "FROM wsc_monthly_with_attri_dams_reg_20240204")) %>%
+    mutate(regulated = "Regulated Flow"),
+  dbGetQuery(conn, paste("SELECT", stn_attr_cols, "FROM wsc_monthly_with_attri_dams_nat_20240204")) %>%
+    mutate(regulated = "Natural Flow")
+) %>%
+  left_join(
+    wsc_pp %>% st_transform(3005) %>%
+      mutate(x_3005 = st_coordinates(.)[, 1], y_3005 = st_coordinates(.)[, 2]) %>%
+      st_drop_geometry() %>%
+      select(station_number = stationnum, name, lon, lat, x_3005, y_3005) %>%
+      distinct(station_number, .keep_all = TRUE),
+    by = "station_number"
+  ) %>%
+  mutate(total_name = paste0(station_number, " - ", name, " - ", regulated))
 
 # 
 # # NAMES FOR WATERSHED MENU ####

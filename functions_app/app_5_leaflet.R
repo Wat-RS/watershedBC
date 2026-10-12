@@ -283,7 +283,7 @@ var _lidarLayers = {};
       var master = document.getElementById('lidar-master-chk');
       var yearsBox = document.getElementById('lidar-years');
       var lidarCaret = document.getElementById('lidar-caret');
-      var yearsCollapsed = window.innerWidth <= 768;   // phones: layers on, year list hidden
+      var yearsCollapsed = true;                       // year list hidden until the caret is clicked
       function applyMaster() {
         lidarCaret.innerHTML = yearsCollapsed ? '&#9656;' : '&#9662;';
         lidarCaret.style.visibility = master.checked ? 'visible' : 'hidden';
@@ -295,7 +295,7 @@ var _lidarLayers = {};
           cbs.forEach(function(cb){ removeLidar(cb); });   // hide layers, keep checkbox state
         }
       }
-      master.checked = true;
+      master.checked = false;
       applyMaster();
       master.addEventListener('change', applyMaster);
       lidarCaret.addEventListener('click', function(e) {
