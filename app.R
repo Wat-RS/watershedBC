@@ -229,6 +229,37 @@ add_landslides <- function(map) {
     ")
 }
 
+# Session expiry countdown (footer). The server keepalive holds the session for keepalive_s;
+# after that shinyapps.io drops it after idle_timeout_s with no traffic (instance idle
+# timeout setting), so any input/output resets the clock. This is an estimate, client-side.
+keepalive_s    <- 15 * 60
+idle_timeout_s <- 15 * 60
+session_countdown_js <- tags$script(HTML(sprintf("
+  (function(){
+    var keepaliveEnd = null, lastActivity = Date.now(), timer = null;
+    var idleMs = %d * 1000;
+    function touch(){ lastActivity = Date.now(); }
+    function tick(){
+      var el = document.getElementById('session-countdown');
+      if (!el || keepaliveEnd === null) return;
+      if (Date.now() < keepaliveEnd) { el.textContent = ''; return; }   // hidden while keepalive holds the session
+      var left = Math.max(0, Math.max(keepaliveEnd, lastActivity) + idleMs - Date.now());
+      var m = Math.floor(left / 60000), s = Math.floor(left %% 60000 / 1000);
+      el.textContent = ' · session expires in ~' + m + ':' + (s < 10 ? '0' : '') + s;
+      el.style.color = left < 5 * 60000 ? '#c0392b' : '';
+    }
+    $(document).on('shiny:connected', function(){
+      keepaliveEnd = Date.now() + %d * 1000; touch(); tick();
+      timer = setInterval(tick, 1000);
+    });
+    $(document).on('shiny:inputchanged shiny:value', touch);
+    $(document).on('shiny:disconnected', function(){
+      clearInterval(timer);
+      var el = document.getElementById('session-countdown');
+      if (el) el.textContent = ' · session expired';
+    });
+  })();", idle_timeout_s, keepalive_s)))
+
 # UI ###########################################################################
 
 # new_ws2 <- st_read(conn, query = "SELECT * FROM fwa_named WHERE gnis_name = 'Bowser River'") %>% mutate(area_km2 = area_m2/(1000*1000))
@@ -251,7 +282,8 @@ ui <- function(request)   # function of request so URL bookmarks restore inputs
                        map_head_tags,
                        tags$script(HTML("document.addEventListener('DOMContentLoaded', function(){
                                         if (window.innerWidth < 768) document.body.classList.add('side-collapsed'); });")),
-                       tags$link(rel = "icon", href = "images/watrs-favicon.png")),
+                       tags$link(rel = "icon", href = "images/watrs-favicon.png"),
+                       session_countdown_js),
                      tags$style(HTML(".table-scroll {max-height: 200px; overflow-y: auto;}
                               .nav-tabs > li > a { font-size: 13px; padding: 6px 10px; }
                               .caption-box { background: #f8f9fa; border-left: 4px solid #337ab7;
@@ -593,7 +625,8 @@ ui <- function(request)   # function of request so URL bookmarks restore inputs
                        shiny::column(width = 12, class = "wrsl-footer",
                                      HTML("<a href='https://watershedlab.ca' target='_blank'>Watershed Remote Sensing Lab</a>,
                                            University of Northern British Columbia"),
-                                     textOutput("visit_count", inline = TRUE))))))
+                                     textOutput("visit_count", inline = TRUE),
+                                     tags$span(id = "session-countdown"))))))
           # shiny::fluidRow(
           #              shiny::column(width = 12,
           #                            style = "background-color:#003366; border-top:2px solid #fcba19;",
@@ -659,9 +692,9 @@ server <- function(input, output, session) {
   ws_point         <- reactiveVal(NULL)   # lat/lng of the delineated watershed, saved in the URL bookmark
   restore_trigger  <- reactiveVal(NULL)   # set on bookmark restore to re-run delineation
 
-  # Keepalive: stops shinyapps.io dropping idle sessions, for the first hour only
+  # Keepalive: stops shinyapps.io dropping idle sessions, for the first keepalive_s only
   # (after that the normal idle timeout applies, so forgotten tabs don't burn active hours)
-  keepalive_until <- Sys.time() + 3600
+  keepalive_until <- Sys.time() + keepalive_s
   observe({ if (Sys.time() < keepalive_until) invalidateLater(60000); NULL })
 
   # 1b. URL BOOKMARK ──────────────────────────────────────────────────────────── ####
