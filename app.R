@@ -160,12 +160,13 @@ ui <-
                      title = tags$img(src = "images/watershedbc-wordmark.svg", class = "navbar-logo",
                                       style = "max-height:30px;", alt = "watershedBC"),
                      windowTitle = "watershedBC",
+                     collapsible = TRUE,
+                     header = tagList(
                      tags$head(
                        map_head_tags,
                        tags$script(HTML("document.addEventListener('DOMContentLoaded', function(){
                                         if (window.innerWidth < 768) document.body.classList.add('side-collapsed'); });")),
                        tags$link(rel = "icon", href = "images/watrs-favicon.png")),
-                     collapsible = TRUE,
                      tags$style(HTML(".table-scroll {max-height: 200px; overflow-y: auto;}
                               .nav-tabs > li > a { font-size: 13px; padding: 6px 10px; }
                               .caption-box { background: #f8f9fa; border-left: 4px solid #337ab7;
@@ -175,7 +176,7 @@ ui <-
                                                                 font-size: 12px; padding: 4px 10px; text-align: left;}
                               downloadAllSpatial {background-color: #337ab7; color: #fff; border-color: #2e6da4;
                                                    font-weight: bold; margin-bottom: 8px; }
-                              .downloads-section h5 { margin-top: 10px; margin-bottom: 6px; }")),
+                              .downloads-section h5 { margin-top: 10px; margin-bottom: 6px; }"))),
                      
                      tabPanel(title = "watershedBC Prototype",
                               
@@ -489,7 +490,8 @@ ui <-
                                 HTML("<a href='http://bcgov-env.shinyapps.io/bcws_wx/' target='_blank'>BC Wildfire Service Weather Station Data Visualization</a>"),
                                 HTML("<a href='http://bcgov-env.shinyapps.io/bc_gw_tools/' target='_blank'>Groundwater Well Tools</a>")),    # end fluidRow
                      
-                     #### FOOTER #### 
+                     #### FOOTER ####
+                     footer = tagList(
                      shiny::fluidRow(
                        shiny::column(width = 12,
                                      HTML("watershedBC is a <b>prototype</b> — results are not validated and should not be used for regulatory or engineering decisions.<br>
@@ -500,7 +502,7 @@ ui <-
                        shiny::column(width = 12, class = "wrsl-footer",
                                      HTML("<a href='https://watershedlab.ca' target='_blank'>Watershed Remote Sensing Lab</a>,
                                            University of Northern British Columbia"),
-                                     textOutput("visit_count", inline = TRUE)))))
+                                     textOutput("visit_count", inline = TRUE))))))
           # shiny::fluidRow(
           #              shiny::column(width = 12,
           #                            style = "background-color:#003366; border-top:2px solid #fcba19;",
