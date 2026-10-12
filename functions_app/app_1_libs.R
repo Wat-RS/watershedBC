@@ -12,7 +12,7 @@ required_pkgs <- c(
   # PLOTS
   "ggplot2", "plotly",
   # SHINY
-  "shiny", "shinyjs", "shinycssloaders", "callr",
+  "shiny", "shinyjs", "shinycssloaders", "shinydisconnect", "callr",
   # LEAFLET
   "leaflet", "leafem", "leafgl",
   # WRANGLING
@@ -68,6 +68,7 @@ suppressPackageStartupMessages({
   library(shiny)
   library(shinyjs)
   library(shinycssloaders)
+  library(shinydisconnect)
   # library(callr)         # not used in current code
   
   # LEAFLET

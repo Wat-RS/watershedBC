@@ -236,9 +236,11 @@ add_landslides <- function(map) {
 # new_ws2 <- st_read(conn, query = "SELECT * FROM fwa_named WHERE gnis_name = 'Nithi River'") %>% mutate(area_km2 = area_m2/(1000*1000))
 # new_ws2 <- st_read(conn, query = "SELECT * FROM fwa_named WHERE gnis_name = 'Parsnip River'") %>% mutate(area_km2 = area_m2/(1000*1000))
 
-ui <-
-  
+ui <- function(request)   # function of request so URL bookmarks restore inputs
+
   tagList(useShinyjs(),
+          disconnectMessage(text = "Your session timed out or lost its connection. Reload to return to your selected watershed.",
+                            refresh = "Reload"),
           navbarPage(theme = "css/wrsl.css",
                      title = tags$img(src = "images/watershedbc-wordmark.svg", class = "navbar-logo",
                                       style = "max-height:30px;", alt = "watershedBC"),
@@ -654,6 +656,36 @@ server <- function(input, output, session) {
   gg_plot_discharge2 <- reactiveVal()
   pending_click    <- reactiveVal(NULL)   # stores lat/lng awaiting confirmation
   discharge_obs    <- NULL                # reference-station observer, recreated each run
+  ws_point         <- reactiveVal(NULL)   # lat/lng of the delineated watershed, saved in the URL bookmark
+  restore_trigger  <- reactiveVal(NULL)   # set on bookmark restore to re-run delineation
+
+  # Keepalive: stops shinyapps.io dropping idle sessions, for the first hour only
+  # (after that the normal idle timeout applies, so forgotten tabs don't burn active hours)
+  keepalive_until <- Sys.time() + 3600
+  observe({ if (Sys.time() < keepalive_until) invalidateLater(60000); NULL })
+
+  # 1b. URL BOOKMARK ──────────────────────────────────────────────────────────── ####
+  #     Only the delineation point is stored; watershed_source and run_modules come
+  #     along as ordinary inputs. Everything transient is excluded from the URL.
+  onBookmark(function(state) {
+    state$values$ws_point <- ws_point()
+  })
+  onBookmarked(function(url) {
+    updateQueryString(url)
+  })
+  onRestore(function(state) {
+    pt <- state$values$ws_point
+    if (!is.null(pt$lat) && !is.null(pt$lng)) {
+      pending_click(list(lat = as.numeric(pt$lat), lng = as.numeric(pt$lng)))
+      restore_trigger(Sys.time())
+    }
+  })
+  bookmark_selection <- function() {
+    setBookmarkExclude(c("btn_confirm_delineate", "zoom_to_button", "run_button", "ls_load",
+                         "psql_zoom_to_name", "plot_discharge_site_sel",
+                         grep("^mymap_|^plotly_|^\\.clientValue", names(input), value = TRUE)))
+    session$doBookmark()
+  }
   
   output$mymap <- renderLeaflet({
     initial_map %>%
@@ -745,9 +777,12 @@ server <- function(input, output, session) {
   
   # 3. CONFIRMED MAP CLICK → WATERSHED SELECTION ──────────────────────────────── ####
   
-  observeEvent(input$btn_confirm_delineate, {
-    
-    removeModal()
+  # Same delineation runs for a confirmed click and for a bookmark restore
+  observeEvent(input$btn_confirm_delineate, { removeModal(); delineate_pending() })
+  observeEvent(restore_trigger(), { delineate_pending() })
+
+  delineate_pending <- function() {
+
     point_df <- as.data.frame(pending_click())
     
     withProgress(message = "Finding watershed...", max = 1, {
@@ -881,6 +916,9 @@ server <- function(input, output, session) {
                                 area_km2         = round(new_ws()$area_km2, 1),
                                 basin_source     = basin_source()),
                      append = TRUE)
+
+        ws_point(as.list(point_df))
+        bookmark_selection()
       } else {
         showModal(modalDialog(
           title  = "No watershed found",
@@ -889,7 +927,7 @@ server <- function(input, output, session) {
         ))
       }
     })
-  })
+  }
   
   # 4. SELECT FROM LIST ────────────────────────────────────────────────────────── ####
   
@@ -2469,4 +2507,4 @@ server <- function(input, output, session) {
   
 }
 
-shinyApp(ui, server)
+shinyApp(ui, server, enableBookmarking = "url")
