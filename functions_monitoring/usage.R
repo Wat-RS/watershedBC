@@ -41,7 +41,7 @@ plot_usage_recent <- df %>% as_tibble() %>%
   mutate(gnis_name = paste0(gnis_name, " ", format(date_time, "(%Y-%m-%d %H:%M)") )) %>%
   mutate(gnis_name = fct_reorder(gnis_name, date_time)) %>%
   ggplot(aes(date_time, gnis_name)) +
-  geom_point(aes(fill = session_token, size = time),
+  geom_point(aes(fill = session_token, size = processing_time),
              shape = 21,
              # size = 3,
              show.legend = F) +
