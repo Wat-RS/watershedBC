@@ -59,4 +59,4 @@ example_jeremy.R
 *.sqlite
 *.gpkg
 *.html
-
+*.RDS
