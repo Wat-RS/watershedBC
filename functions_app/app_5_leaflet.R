@@ -219,26 +219,13 @@ initial_map <- leaflet() %>%
     label = paste0(wsc_pp_dc$name, " - ", wsc_pp_dc$stationnum, " [discontinued]")
   ) %>%
   addMouseCoordinates() %>%
-  addMapPane("bcRefPane", zIndex = 360) %>%     # above lidarPane (350), below points (400)
-  addWMSTiles("https://openmaps.gov.bc.ca/geo/pub/ows",
-              layers  = "pub:WHSE_BASEMAPPING.FWA_STREAM_NETWORKS_SP", group = "BC Streams",
-              options = WMSTileOptions(format = "image/png", transparent = TRUE,
-                                       styles = "698_699", pane = "bcRefPane")) %>%
-  addWMSTiles("https://openmaps.gov.bc.ca/geo/pub/ows",
-              layers  = "pub:WHSE_BASEMAPPING.DRA_DGTL_ROAD_ATLAS_MPAR_SP", group = "BC Roads",
-              options = WMSTileOptions(format = "image/png", transparent = TRUE,
-                                       styles = "3241_4489", pane = "bcRefPane")) %>%
-  addWMSTiles("https://openmaps.gov.bc.ca/geo/pub/ows",
-              layers  = "pub:WHSE_BASEMAPPING.GNS_GEOGRAPHICAL_NAMES_SP", group = "BC Place Names",
-              options = WMSTileOptions(format = "image/png", transparent = TRUE,
-                                       styles = "6142", pane = "bcRefPane")) %>%
   addLayersControl(
     baseGroups    = c("BC Basemap", "WorldImagery", "WorldTopoMap",
                       "Landsat 2000", "Landsat 2021"),
-    overlayGroups = c("WSC Active", "WSC Discontinued", "BC Streams", "BC Roads", "BC Place Names"),
+    overlayGroups = c("WSC Active", "WSC Discontinued"),
     options       = layersControlOptions(collapsed = TRUE)   # forced open on desktop via wrsl.css
   ) %>%
-  hideGroup(c("WSC Active", "WSC Discontinued", "BC Streams", "BC Roads", "BC Place Names")) %>%
+  hideGroup(c("WSC Active", "WSC Discontinued")) %>%
   addControl(lidar_control, position = "topleft", className = "lidar-panel") %>%
   # ── onRender: JS runs AFTER the map is fully ready, with direct map access ──
   onRender("
