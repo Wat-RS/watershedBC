@@ -447,7 +447,8 @@ var _lidarLayers = {};
           if (!mime) { alert('Video export is not supported in this browser.'); return; }
           s2stop();
           var mapEl = el.querySelector('.leaflet-container') || el, frames = [], start = s2cur,
-              fps = +s2fps.value, btnHtml = s2export.innerHTML;
+              fps = +s2fps.value, btnHtml = s2export.innerHTML,
+              ctr = map.getCenter(), zm = map.getZoom();
           s2export.disabled = s2play.disabled = s2slider.disabled = true;
           mapEl.classList.add('s2-capturing');
           function done() {
@@ -488,6 +489,7 @@ var _lidarLayers = {};
               var a = document.createElement('a');
               a.href = URL.createObjectURL(new Blob(chunks, { type: mime }));
               a.download = 'satellite_timelapse_' + s2years[0] + '-' + s2years[s2years.length - 1] +
+                           '_lat' + ctr.lat.toFixed(4) + '_lon' + ctr.lng.toFixed(4) + '_z' + zm +
                            (mime.indexOf('mp4') >= 0 ? '.mp4' : '.webm');
               a.click();
               setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
