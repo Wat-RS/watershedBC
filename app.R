@@ -8,6 +8,7 @@ source("functions_app/app_4_discharge_matchStn_forceUpdate.R")
 source("functions_app/app_5_leaflet.R")
 source("functions_app/app_7_tooltips.R")
 source("functions_app/app_8_report.R")
+source("functions_app/app_9_lidar_profile.R")
 source("functions_monitoring/usage.R")
 
 # Remote (S3 /vsicurl) raster reads: don't let GDAL list the bucket "directory" on every open,
@@ -464,6 +465,7 @@ ui <- function(request)   # function of request so URL bookmarks restore inputs
                                               leafletOutput("mymap", height = "700px") %>% withSpinner(color = "steelblue"),
                                               
                                               map_toolbar,
+                                              profile_panel_ui,
                                               # NOTE: "Delineation on map click" checkbox removed.
                                               # Clicking the map now triggers a confirmation pop-up automatically.
                                               
@@ -650,6 +652,8 @@ caption <- function(...) {
 
 server <- function(input, output, session) {
   
+  lidar_profile_server(input, output, session)
+  
   # 0. Module tab map ───────────────────────────────────────────────────────────── ####
   MODULE_TABS <- c(
     "Streamflow and Freshwater"    = "Streamflow & Freshwater",
@@ -716,12 +720,14 @@ server <- function(input, output, session) {
   bookmark_selection <- function() {
     setBookmarkExclude(c("btn_confirm_delineate", "zoom_to_button", "run_button", "ls_load",
                          "psql_zoom_to_name", "plot_discharge_site_sel",
+                         "profile_mode", "profile_line", "profile_close",
                          grep("^mymap_|^plotly_|^\\.clientValue", names(input), value = TRUE)))
     session$doBookmark()
   }
   
   output$mymap <- renderLeaflet({
     initial_map %>%
+      add_profile_tool() %>%
       add_landslides() %>%
       addLayersControl(
         baseGroups    = BASE_GROUPS,
@@ -744,6 +750,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$mymap_click, {
     
+    if (isTRUE(input$profile_mode)) return()   # drawing an elevation profile line
     point <- input$mymap_click
     pending_click(list(lat = point$lat, lng = point$lng))
     
