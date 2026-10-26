@@ -241,6 +241,7 @@ initial_map <- leaflet() %>%
     label = paste0(wsc_pp_dc$name, " - ", wsc_pp_dc$stationnum, " [discontinued]")
   ) %>%
   addMouseCoordinates() %>%
+  addScaleBar(position = "bottomleft", options = scaleBarOptions(imperial = FALSE)) %>%
   addLayersControl(
     baseGroups    = c("BC Basemap", "WorldImagery", "WorldTopoMap"),
     overlayGroups = c("WSC Active", "WSC Discontinued"),
