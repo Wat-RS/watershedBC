@@ -90,7 +90,7 @@ add_landslide_points <- function(map) {
 }
 
 # Map groups ────────────────────────────────────────────────────────────────
-BASE_GROUPS    <- c("BC Basemap","WorldImagery","WorldTopoMap","Landsat 2000","Landsat 2021")
+BASE_GROUPS    <- c("BC Basemap","WorldImagery","WorldTopoMap")
 REF_OVERLAYS   <- c(LS_GROUP, "WSC Active", "WSC Discontinued")
 # Layers added by a run; cleared on each new selection/run
 RESULT_GROUPS  <- c("Sub-basins","FWA Wetland","FWA Lake","FWA Glacier","Glacier 1985","Glacier 2021",
