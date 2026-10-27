@@ -2,12 +2,13 @@
 radioTooltip <- function(id, choice, title, placement = "bottom", trigger = "hover", options = NULL){
 
   options = shinyBS:::buildTooltipOrPopoverOptionsList(title, placement, trigger, options)
-  options = paste0("{'", paste(names(options), options, sep = "': '", collapse = "', '"), "'}")
+  # JSON-encode so quotes in titles (e.g. "BC's") can't break the script
+  options = jsonlite::toJSON(lapply(options, as.character), auto_unbox = TRUE)
   bsTag <- shiny::tags$script(shiny::HTML(paste0("
     $(document).ready(function() {
       setTimeout(function() {
         $('input', $('#", id, "')).each(function(){
-          if(this.getAttribute('value') == '", choice, "') {
+          if(this.getAttribute('value') == ", jsonlite::toJSON(choice, auto_unbox = TRUE), ") {
             opts = $.extend(", options, ", {html: true});
             $(this.parentElement).tooltip('destroy');
             $(this.parentElement).tooltip(opts);

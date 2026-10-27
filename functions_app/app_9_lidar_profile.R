@@ -148,7 +148,14 @@ add_profile_tool <- function(map) {
         else guide.setLatLngs(seg);
       });
       document.addEventListener('keydown', function(e) { if (drawing && e.key === 'Escape') stop(); });
-      Shiny.addCustomMessageHandler('profile_clear', function() { clear(); });
+      // Shiny throws if the handler doesn't take exactly one argument or is registered twice
+      // (the map can render more than once); either aborts the render hooks after this one
+      // (landslides), so register once and point it at the current map's clear()
+      window._profileClear = clear;
+      if (!window._profileHandler) {
+        window._profileHandler = true;
+        Shiny.addCustomMessageHandler('profile_clear', function(msg) { if (window._profileClear) window._profileClear(); });
+      }
     }")
 }
 
