@@ -11,6 +11,7 @@ source("functions_app/app_8_report.R")
 source("functions_app/app_9_lidar_profile.R")
 source("functions_monitoring/usage.R")
 
+
 # Remote (S3 /vsicurl) raster reads: don't let GDAL list the bucket "directory" on every open,
 # and cache fetched byte ranges within the process
 terra::setGDALconfig("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
