@@ -111,7 +111,7 @@ add_profile_tool <- function(map) {
         pts = [];
       }
       function setMode(on, delay) {
-        drawing = on;
+        drawing = on; map._profileDrawing = on;   // the snow tool checks this
         btn.style.background = on ? '#cde4f0' : '';
         map.getContainer().style.cursor = on ? 'crosshair' : '';
         on ? map.doubleClickZoom.disable() : map.doubleClickZoom.enable();
@@ -164,6 +164,7 @@ profile_panel_ui <- uiOutput("profile_panel")
 
 lidar_profile_server <- function(input, output, session, map_id = "mymap") {
   prof <- reactiveVal(NULL)
+  snow <- reactiveVal(NULL)   # snow metrics at the same sample points (app_10), NULL off-grid
 
   observeEvent(input$profile_line, {
     xy <- cbind(unlist(input$profile_line$lng), unlist(input$profile_line$lat))
@@ -182,11 +183,12 @@ lidar_profile_server <- function(input, output, session, map_id = "mymap") {
       showNotification("Couldn't read elevations along this line.", type = "warning")
       session$sendCustomMessage("profile_clear", TRUE)
     }
+    snow(if (!is.null(z)) snow_along(distinct(z, pt, dist_m, lon, lat)))
     prof(z)
   })
 
   observeEvent(input$profile_close, {
-    prof(NULL)
+    prof(NULL); snow(NULL)
     session$sendCustomMessage("profile_clear", TRUE)
     leafletProxy(map_id) %>% clearGroup("profile_hover")
   })
@@ -199,13 +201,14 @@ lidar_profile_server <- function(input, output, session, map_id = "mymap") {
       tags$div(
         style = "display:flex; align-items:center; gap:14px; font-size:12px;",
         tags$b(style = "font-size:14px;", "Elevation profile"),
-        sprintf("%s m · %s", format(round(max(z$dist_m)), big.mark = ","),
+        sprintf("%s m · %s%s", format(round(max(z$dist_m)), big.mark = ","),
                 if (n_lidar) paste(n_lidar, if (n_lidar == 1) "lidar survey" else "lidar surveys")
-                else "no lidar coverage, 30 m DEMs only"),
+                else "no lidar coverage, 30 m DEMs only",
+                if (!is.null(snow())) " · snow metrics" else ""),
         downloadLink("profile_csv", tagList(icon("download"), "CSV")),
         actionLink("profile_close", icon("xmark"), title = "Close profile", style = "margin-left:auto; color:#666;")
       ),
-      plotlyOutput("profile_plot", height = "300px")
+      plotlyOutput("profile_plot", height = if (is.null(snow())) "300px" else "560px")
     )
   })
 
@@ -223,10 +226,28 @@ lidar_profile_server <- function(input, output, session, map_id = "mymap") {
                      line = list(color = cols[[s]], width = if (s %in% lidar) 1.5 else 1,
                                  dash = if (s %in% lidar) "solid" else "dot"))
     }
+    p <- layout(p, yaxis = list(title = "Elevation (m)"))
+    sn <- snow()
+    if (!is.null(sn)) {
+      # Snow season (band from onset to melt-out date) and duration, sharing the distance axis
+      sn$on_d  <- SNOW_ORIGIN + sn$on
+      sn$off_d <- SNOW_ORIGIN + sn$off
+      ps <- plot_ly(sn, x = ~dist_m, customdata = ~pt, source = "profile") %>%
+        add_lines(y = ~on_d, name = "SD-on", line = list(color = "#21908c"),
+                  text = ~snow_date(on), hovertemplate = "SD-on: %{text}") %>%
+        add_lines(y = ~off_d, name = "SD-off", line = list(color = "#cc4778"), fill = "tonexty",
+                  fillcolor = "rgba(107,174,214,0.25)", text = ~snow_date(off), hovertemplate = "SD-off: %{text}") %>%
+        layout(yaxis = list(title = "Snow season", tickformat = "%b %d"))
+      pd <- plot_ly(sn, x = ~dist_m, customdata = ~pt, source = "profile") %>%
+        add_lines(y = ~dur, name = "SD-dur", line = list(color = "#08519c"),
+                  text = ~sprintf("%.0f days (obs %.0f)", dur, obs), hovertemplate = "SD-dur: %{text}") %>%
+        layout(yaxis = list(title = "Snow days"))
+      p <- subplot(p, ps, pd, nrows = 3, shareX = TRUE, titleY = TRUE, heights = c(0.5, 0.27, 0.23))
+    }
     p %>%
-      layout(xaxis = list(title = "Distance (m)"), yaxis = list(title = "Elevation (m)"),
+      layout(xaxis = list(title = "Distance (m)"),
              hovermode = "x unified", margin = list(t = 10),
-             legend = list(orientation = "h", y = -0.25)) %>%
+             legend = list(orientation = "h", y = if (is.null(sn)) -0.25 else -0.12)) %>%
       config(displaylogo = FALSE) %>%
       event_register("plotly_hover") %>%
       event_register("plotly_unhover")
@@ -248,8 +269,13 @@ lidar_profile_server <- function(input, output, session, map_id = "mymap") {
   output$profile_csv <- downloadHandler(
     filename = function() "elevation_profile.csv",
     content  = function(file) {
-      z <- prof()
-      write.csv(z[, c("source", "dist_m", "lon", "lat", "z")], file, row.names = FALSE)
+      z  <- prof()[, c("pt", "source", "dist_m", "lon", "lat", "z")]
+      sn <- snow()
+      if (!is.null(sn))   # same snow values on every source's row at a sample point
+        z <- left_join(z, transmute(sn, pt, sd_on_day = on, sd_on_date = snow_date(on),
+                                    sd_off_day = off, sd_off_date = snow_date(off),
+                                    sd_dur_days = dur, snow_obs = obs), by = "pt")
+      write.csv(select(z, -pt), file, row.names = FALSE)
     }
   )
 }
