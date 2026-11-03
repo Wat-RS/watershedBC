@@ -10,6 +10,7 @@ source("functions_app/app_7_tooltips.R")
 source("functions_app/app_8_report.R")
 source("functions_app/app_9_lidar_profile.R")
 source("functions_app/app_10_snow.R")
+source("functions_app/app_11_stations.R")
 source("functions_monitoring/usage.R")
 
 
@@ -95,7 +96,8 @@ add_landslide_points <- function(map) {
 
 # Map groups ────────────────────────────────────────────────────────────────
 BASE_GROUPS    <- c("BC Basemap","WorldImagery","WorldTopoMap")
-REF_OVERLAYS   <- c(LS_GROUP, "WSC Active", "WSC Discontinued")
+# WSC and the other station networks are toggled from the Stations menu (app_11_stations.R)
+REF_OVERLAYS   <- c(LS_GROUP)
 # Layers added by a run; cleared on each new selection/run
 RESULT_GROUPS  <- c("Sub-basins","FWA Wetland","FWA Lake","FWA Glacier","Glacier 1985","Glacier 2021",
                     "Fire","Cutblock","Roads","Water Rights","Water Approvals")
@@ -657,6 +659,7 @@ server <- function(input, output, session) {
   
   lidar_profile_server(input, output, session)
   snow_server(input, output, session)
+  station_networks_server(input, output, session)
   
   # 0. Module tab map ───────────────────────────────────────────────────────────── ####
   MODULE_TABS <- c(
@@ -724,7 +727,7 @@ server <- function(input, output, session) {
   bookmark_selection <- function() {
     setBookmarkExclude(c("btn_confirm_delineate", "zoom_to_button", "run_button", "ls_load",
                          "psql_zoom_to_name", "plot_discharge_site_sel",
-                         "profile_mode", "profile_line", "profile_close", "snow_mode", "snow_click",
+                         "profile_mode", "profile_line", "profile_close", "snow_mode", "snow_click", "stn_load",
                          grep("^mymap_|^plotly_|^\\.clientValue", names(input), value = TRUE)))
     session$doBookmark()
   }
@@ -733,6 +736,7 @@ server <- function(input, output, session) {
     initial_map %>%
       add_profile_tool() %>%
       add_snow_tool() %>%
+      add_station_networks() %>%
       add_landslides() %>%
       addLayersControl(
         baseGroups    = BASE_GROUPS,
