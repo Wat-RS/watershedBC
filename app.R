@@ -9,6 +9,7 @@ source("functions_app/app_5_leaflet.R")
 source("functions_app/app_7_tooltips.R")
 source("functions_app/app_8_report.R")
 source("functions_app/app_9_lidar_profile.R")
+source("functions_app/app_10_snow.R")
 source("functions_monitoring/usage.R")
 
 
@@ -33,6 +34,7 @@ get_snow_vrt <- function() {
   }
   snow_vrt_file
 }
+
 
 # Distinct-visit count for the footer: one query per process every 10 min instead of a
 # full scan of the usage table on every app open
@@ -654,6 +656,7 @@ caption <- function(...) {
 server <- function(input, output, session) {
   
   lidar_profile_server(input, output, session)
+  snow_server(input, output, session)
   
   # 0. Module tab map ───────────────────────────────────────────────────────────── ####
   MODULE_TABS <- c(
@@ -721,7 +724,7 @@ server <- function(input, output, session) {
   bookmark_selection <- function() {
     setBookmarkExclude(c("btn_confirm_delineate", "zoom_to_button", "run_button", "ls_load",
                          "psql_zoom_to_name", "plot_discharge_site_sel",
-                         "profile_mode", "profile_line", "profile_close",
+                         "profile_mode", "profile_line", "profile_close", "snow_mode", "snow_click",
                          grep("^mymap_|^plotly_|^\\.clientValue", names(input), value = TRUE)))
     session$doBookmark()
   }
@@ -729,6 +732,7 @@ server <- function(input, output, session) {
   output$mymap <- renderLeaflet({
     initial_map %>%
       add_profile_tool() %>%
+      add_snow_tool() %>%
       add_landslides() %>%
       addLayersControl(
         baseGroups    = BASE_GROUPS,
@@ -752,6 +756,7 @@ server <- function(input, output, session) {
   observeEvent(input$mymap_click, {
     
     if (isTRUE(input$profile_mode)) return()   # drawing an elevation profile line
+    if (isTRUE(input$snow_mode))    return()   # Snow layer on: clicks show snow values
     point <- input$mymap_click
     pending_click(list(lat = point$lat, lng = point$lng))
     
